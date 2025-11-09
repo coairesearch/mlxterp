@@ -69,3 +69,7 @@ dmypy.json
 *.safetensors
 models/
 checkpoints/
+
+# Weights & Biases
+wandb/
+*.mlx/

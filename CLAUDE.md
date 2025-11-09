@@ -53,6 +53,44 @@ The library follows a **functional-first paradigm** that aligns with MLX's desig
 
 ## Development Guidelines
 
+### Repository Cleanliness (CRITICAL)
+
+**ALWAYS keep the repository clean and professional:**
+
+**DO:**
+- Place all examples in `examples/` directory
+- Place all tests in `tests/` directory
+- Place all documentation in `docs/` directory
+- Use temporary variables in code instead of creating debug files
+- Clean up any temporary files immediately after debugging
+- Add generated files (`.mlx/`, `wandb/`, etc.) to `.gitignore`
+
+**DON'T:**
+- Create debug scripts in root directory (e.g., `debug_*.py`, `test_*.py`, `check_*.py`)
+- Create temporary documentation files in root (e.g., `*_SUMMARY.md`, `*_FIX.md`, `*_GUIDE.md`)
+- Leave test artifacts (`.mlx` model files, cache directories)
+- Scatter analysis scripts across the repository
+- Create multiple redundant documentation files
+
+**Root directory should ONLY contain:**
+- `CLAUDE.md` - This file (development guidelines)
+- `README.md` - Main documentation
+- `SAE_ROADMAP.md` - SAE development phases
+- `TROUBLESHOOTING.md` - User troubleshooting guide
+- Configuration files (`pyproject.toml`, `mkdocs.yml`, etc.)
+- Essential project files (`.gitignore`, `LICENSE`, etc.)
+
+**For debugging:**
+- Use Python debugger or print statements
+- Create temporary functions, not files
+- If you must create a debug script, delete it immediately after use
+- Use notebooks for interactive exploration (but clean them up)
+
+**For documentation:**
+- Add to `docs/` directory and update `mkdocs.yml`
+- Don't create summary files for internal communication
+- Consolidate related information instead of creating many small files
+
 ### When Creating New Components
 
 **DO:**
@@ -61,6 +99,7 @@ The library follows a **functional-first paradigm** that aligns with MLX's desig
 - Add type hints to all function signatures
 - Design for Metal optimization opportunities
 - Keep the API simple and composable
+- Keep the repository clean and organized
 
 **DON'T:**
 - Create model-specific implementations (e.g., HookedLlama, HookedMistral) - use generic wrapping
@@ -68,6 +107,7 @@ The library follows a **functional-first paradigm** that aligns with MLX's desig
 - Create unnecessary abstractions or boilerplate
 - Duplicate functionality that exists in MLX
 - Add features that compromise the "simple and accessible" goal
+- Scatter debug files and temporary documentation across the repo
 
 ### Code Style Preferences
 

@@ -11,9 +11,10 @@ from typing import Optional, Dict, Callable, Any, Union, List
 from .core import Trace, ModuleProxy, LayerListProxy
 from .tokenization import TokenizerMixin
 from .analysis import AnalysisMixin
+from .sae_mixin import SAEMixin
 
 
-class InterpretableModel(TokenizerMixin, AnalysisMixin):
+class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
     """
     Wraps any MLX model to provide interpretability features.
 
@@ -24,6 +25,7 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin):
     - Intervention support
     - Tokenization utilities (via TokenizerMixin)
     - Analysis methods: logit_lens, activation_patching (via AnalysisMixin)
+    - SAE training and analysis: train_sae, load_sae (via SAEMixin)
 
     Example:
         >>> from mlxterp import InterpretableModel

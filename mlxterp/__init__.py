@@ -39,6 +39,7 @@ from .core import (
     collect_activations,
 )
 from .utils import get_activations, batch_get_activations
+from .sae import SAE, SAEConfig, SAETrainer
 
 # Create interventions namespace for cleaner imports
 class _Interventions:
@@ -71,4 +72,8 @@ __all__ = [
     # Utils
     "get_activations",
     "batch_get_activations",
+    # SAE
+    "SAE",
+    "SAEConfig",
+    "SAETrainer",
 ]

@@ -85,6 +85,7 @@ nav:
       - API Reference: API.md
   - Guides & Procedures:
       - Activation Patching: guides/activation_patching.md
+      - Dictionary Learning: guides/dictionary_learning.md
   - Development:
       - Architecture: architecture.md
       - Contributing: contributing.md
