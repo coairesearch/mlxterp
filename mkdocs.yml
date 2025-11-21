@@ -86,6 +86,8 @@ nav:
   - Guides & Procedures:
       - Activation Patching: guides/activation_patching.md
       - Dictionary Learning: guides/dictionary_learning.md
+      - SAE Evaluation & Analysis: guides/sae_evaluation.md
+      - SAE Feature Analysis: guides/sae_feature_analysis.md
   - Development:
       - Architecture: architecture.md
       - Contributing: contributing.md

@@ -20,6 +20,11 @@ from .base import BaseSAE
 from .sae import SAE
 from .batchtopk import BatchTopKSAE
 from .trainer import SAETrainer
+from .visualization import (
+    visualize_feature_activations,
+    get_feature_activations_by_token,
+    get_top_activating_tokens,
+)
 
 __all__ = [
     # Configuration
@@ -32,4 +37,8 @@ __all__ = [
     "BatchTopKSAE",
     # Training
     "SAETrainer",
+    # Visualization
+    "visualize_feature_activations",
+    "get_feature_activations_by_token",
+    "get_top_activating_tokens",
 ]

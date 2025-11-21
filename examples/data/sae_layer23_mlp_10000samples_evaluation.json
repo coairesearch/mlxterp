@@ -1,0 +1,30 @@
+{
+  "sae_path": "sae_layer23_mlp_10000samples.mlx",
+  "model": "arogister/Qwen3-8B-ShiningValiant3-mlx-4Bit",
+  "layer": 23,
+  "component": "mlp",
+  "architecture": {
+    "type": "BatchTopKSAE",
+    "d_model": 4096,
+    "d_hidden": 65536,
+    "expansion": 16.0,
+    "k": 128
+  },
+  "reconstruction": {
+    "mse": 0.3906601071357727,
+    "cosine_similarity": 0.8039112687110901,
+    "explained_variance": 0.6027456350494214
+  },
+  "sparsity": {
+    "l0_mean": 462.5004577636719,
+    "l0_fraction": 0.00705719692632556,
+    "dead_features": 0,
+    "dead_features_practical": 61660,
+    "dead_fraction": 0.94085693359375,
+    "rare_threshold": 681,
+    "max_feature_activations": 42357,
+    "min_feature_activations": 178
+  },
+  "quality_score": 1.0,
+  "max_score": 5
+}

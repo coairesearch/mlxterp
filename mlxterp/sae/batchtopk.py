@@ -39,13 +39,40 @@ def batchtopk_activation(x: mx.array, k: int) -> mx.array:
     # Target: keep k * n_samples total values
     target_active = k * n_samples
 
-    # Get all values and sort them
-    all_vals = mx.abs(x_flat).reshape(-1)
-    sorted_vals = mx.sort(all_vals)
+    # WORKAROUND for MLX int32 overflow bug (size > 2^31 - 1)
+    # When flattening large arrays (n_samples * d > 2^31), MLX has an integer overflow
+    # Instead of flattening, we collect values row by row
+    total_elements = n_samples * d
+    MAX_SAFE_SIZE = 2**30  # Stay well below 2^31
 
-    # Find threshold (k-th largest across entire batch)
-    threshold_idx = max(0, len(sorted_vals) - target_active)
-    threshold = sorted_vals[threshold_idx]
+    if total_elements > MAX_SAFE_SIZE:
+        # Process in chunks to avoid overflow
+        # Collect absolute values without flattening
+        abs_vals = mx.abs(x_flat)  # (n_samples, d)
+
+        # Get top k*n_samples values across entire array
+        # Strategy: get top values from each row, then sort globally
+        k_per_sample = max(k * 2, 256)  # Get more per sample to ensure we have enough
+
+        # Get top values from each sample
+        row_topk_vals = []
+        for i in range(n_samples):
+            row_vals = mx.sort(abs_vals[i])[-k_per_sample:]
+            row_topk_vals.append(row_vals)
+
+        # Concatenate and get global threshold
+        all_topk = mx.concatenate(row_topk_vals)
+        sorted_vals = mx.sort(all_topk)
+        threshold_idx = max(0, len(sorted_vals) - target_active)
+        threshold = sorted_vals[threshold_idx]
+    else:
+        # Safe to flatten - array size fits in int32
+        all_vals = mx.abs(x_flat).reshape((-1,))
+        sorted_vals = mx.sort(all_vals)
+
+        # Find threshold (k-th largest across entire batch)
+        threshold_idx = max(0, len(sorted_vals) - target_active)
+        threshold = sorted_vals[threshold_idx]
 
     # Keep only values >= threshold
     mask = mx.abs(x_flat) >= threshold

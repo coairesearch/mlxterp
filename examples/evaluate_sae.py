@@ -11,6 +11,7 @@ This script evaluates a trained SAE on multiple quality metrics:
 import mlx.core as mx
 from mlxterp import InterpretableModel
 from mlxterp.sae import SAE, BatchTopKSAE, BaseSAE
+from mlx_lm import load as mlx_load
 from datasets import load_dataset
 import numpy as np
 from typing import Dict, List, Tuple
@@ -21,7 +22,7 @@ import os
 # Configuration
 # =============================================================================
 
-SAE_PATH = "sae_layer23_mlp_10000samples.mlx"
+SAE_PATH = "examples/models/sae_layer23_mlp_10000samples.mlx"
 MODEL_NAME = "arogister/Qwen3-8B-ShiningValiant3-mlx-4Bit"
 LAYER = 23
 COMPONENT = "mlp"
@@ -46,11 +47,18 @@ def load_test_dataset(num_samples: int = 500) -> List[str]:
     return texts
 
 
-def collect_activations(model, texts: List[str], layer: int, component: str) -> mx.array:
-    """Collect activations from the model."""
+def collect_activations(model, texts: List[str], layer: int, component: str) -> Tuple[mx.array, List[int]]:
+    """Collect activations from the model.
+
+    Returns:
+        activations: Combined activations (n_tokens, d_model)
+        text_indices: Mapping from activation index to text index
+    """
     print(f"\n📥 Collecting activations from Layer {layer} {component}...")
 
     all_activations = []
+    text_indices = []
+
     for i, text in enumerate(texts):
         if (i + 1) % 100 == 0:
             print(f"   Processing {i+1}/{len(texts)}...")
@@ -65,11 +73,13 @@ def collect_activations(model, texts: List[str], layer: int, component: str) -> 
                 # Flatten sequence dimension
                 flat = acts.reshape(-1, acts.shape[-1])
                 all_activations.append(flat)
+                # Track which text each activation came from
+                text_indices.extend([i] * flat.shape[0])
                 break
 
     combined = mx.concatenate(all_activations, axis=0)
     print(f"   ✓ Collected {combined.shape[0]:,} activation samples (d_model={combined.shape[1]})")
-    return combined
+    return combined, text_indices
 
 
 def compute_reconstruction_metrics(original: mx.array, reconstructed: mx.array) -> Dict[str, float]:
@@ -101,19 +111,25 @@ def compute_sparsity_metrics(features: mx.array, sae) -> Dict[str, float]:
     l0 = float(mx.mean(mx.sum(features != 0, axis=-1)))
     l0_fraction = l0 / sae.d_hidden
 
-    # Dead features: Features that never activate
-    feature_max = mx.max(mx.abs(features), axis=(0, 1))
-    dead_features = int(mx.sum(feature_max < 1e-8))
-    dead_fraction = dead_features / sae.d_hidden
-
     # Feature activation distribution
     feature_counts = mx.sum(features != 0, axis=(0, 1))
+    n_samples = features.shape[0]
+
+    # Dead features: Features that never activate
+    # NOTE: With large eval sets, this metric is misleading (rare features will eventually activate)
+    # Better metric: features that activate very rarely (< 1% of samples)
+    dead_features_strict = int(mx.sum(feature_counts == 0))
+    rare_threshold = max(10, int(n_samples * 0.01))  # < 1% of samples
+    dead_features_practical = int(mx.sum(feature_counts < rare_threshold))
+    dead_fraction = dead_features_practical / sae.d_hidden
 
     return {
         "l0_mean": l0,
         "l0_fraction": l0_fraction,
-        "dead_features": dead_features,
+        "dead_features": dead_features_strict,
+        "dead_features_practical": dead_features_practical,
         "dead_fraction": dead_fraction,
+        "rare_threshold": rare_threshold,
         "max_feature_activations": int(mx.max(feature_counts)),
         "min_feature_activations": int(mx.min(feature_counts)),
     }
@@ -122,25 +138,32 @@ def compute_sparsity_metrics(features: mx.array, sae) -> Dict[str, float]:
 def find_top_activating_examples(
     features: mx.array,
     texts: List[str],
+    text_indices: List[int],
     feature_idx: int,
     top_k: int = 5
 ) -> List[Tuple[str, float]]:
     """Find texts where a feature activates most strongly."""
-    # Get activation values for this feature across all samples
-    feature_acts = features[:, :, feature_idx]  # (num_samples, seq_len)
+    # Get activation values for this feature across all tokens
+    feature_acts = features[:, :, feature_idx]  # (n_tokens, seq_len)
 
-    # Get max activation per sample
-    max_per_sample = mx.max(feature_acts, axis=1)  # (num_samples,)
+    # Get max activation per token
+    max_per_token = mx.max(feature_acts, axis=1)  # (n_tokens,)
 
-    # Get top-k indices
-    top_indices = mx.argsort(max_per_sample)[-top_k:][::-1]
+    # Get top-k token indices
+    top_token_indices = mx.argsort(max_per_token)[-top_k:][::-1]
 
     results = []
-    for idx in top_indices.tolist():
-        activation_value = float(max_per_sample[idx])
+    seen_texts = set()
+    for token_idx in top_token_indices.tolist():
+        activation_value = float(max_per_token[token_idx])
         if activation_value > 0:  # Only include if feature actually activated
-            text_snippet = texts[idx][:200]  # First 200 chars
-            results.append((text_snippet, activation_value))
+            # Map token index back to text index
+            text_idx = text_indices[token_idx]
+            # Only show each text once
+            if text_idx not in seen_texts:
+                text_snippet = texts[text_idx][:200]  # First 200 chars
+                results.append((text_snippet, activation_value))
+                seen_texts.add(text_idx)
 
     return results
 
@@ -149,6 +172,7 @@ def analyze_feature_interpretability(
     sae,
     features: mx.array,
     texts: List[str],
+    text_indices: List[int],
     num_features_to_analyze: int = 10
 ) -> Dict[int, List[Tuple[str, float]]]:
     """Analyze what concepts different features represent."""
@@ -160,7 +184,7 @@ def analyze_feature_interpretability(
 
     feature_examples = {}
     for feat_idx in top_features.tolist():
-        examples = find_top_activating_examples(features, texts, feat_idx, top_k=5)
+        examples = find_top_activating_examples(features, texts, text_indices, feat_idx, top_k=5)
         if examples:
             feature_examples[feat_idx] = examples
 
@@ -184,11 +208,15 @@ def evaluate_sae(sae_path: str, model_name: str, layer: int, component: str):
 
     # Step 1: Load SAE
     print(f"\n[1/6] Loading SAE...")
-    # Load using BaseSAE which auto-detects the correct class
-    if os.path.exists(sae_path):
-        sae = BaseSAE.load(sae_path)
-    else:
+    # Load - try BatchTopKSAE first, then SAE
+    if not os.path.exists(sae_path):
         raise FileNotFoundError(f"SAE file not found: {sae_path}")
+
+    try:
+        sae = BatchTopKSAE.load(sae_path)
+    except ValueError:
+        # Fall back to regular SAE
+        sae = SAE.load(sae_path)
     print(f"   ✓ SAE loaded")
     print(f"   Architecture: {sae.__class__.__name__}")
     print(f"   d_model: {sae.d_model}, d_hidden: {sae.d_hidden}")
@@ -198,7 +226,8 @@ def evaluate_sae(sae_path: str, model_name: str, layer: int, component: str):
 
     # Step 2: Load model
     print(f"\n[2/6] Loading model...")
-    model = InterpretableModel(model_name)
+    mlx_model, tokenizer = mlx_load(model_name)
+    model = InterpretableModel(mlx_model, tokenizer=tokenizer)
     print(f"   ✓ Model loaded")
 
     # Step 3: Load test data
@@ -207,7 +236,7 @@ def evaluate_sae(sae_path: str, model_name: str, layer: int, component: str):
 
     # Step 4: Collect activations
     print(f"\n[4/6] Collecting activations...")
-    activations = collect_activations(model, test_texts, layer, component)
+    activations, text_indices = collect_activations(model, test_texts, layer, component)
 
     # Add sequence dimension for SAE (expects 3D)
     activations_3d = activations[:, None, :]  # (batch, 1, d_model)
@@ -234,7 +263,7 @@ def evaluate_sae(sae_path: str, model_name: str, layer: int, component: str):
 
     # Feature interpretability
     feature_examples = analyze_feature_interpretability(
-        sae, features, test_texts, num_features_to_analyze=NUM_FEATURE_EXAMPLES
+        sae, features, test_texts, text_indices, num_features_to_analyze=NUM_FEATURE_EXAMPLES
     )
 
     # =============================================================================
@@ -255,7 +284,8 @@ def evaluate_sae(sae_path: str, model_name: str, layer: int, component: str):
     print("-" * 40)
     print(f"  Average L0:          {sparsity_metrics['l0_mean']:.1f} / {sae.d_hidden}")
     print(f"  L0 Fraction:         {sparsity_metrics['l0_fraction']:.4f}")
-    print(f"  Dead Features:       {sparsity_metrics['dead_features']:,} / {sae.d_hidden:,} ({sparsity_metrics['dead_fraction']:.2%})")
+    print(f"  Dead Features (strict):  {sparsity_metrics['dead_features']:,} / {sae.d_hidden:,}")
+    print(f"  Dead Features (< {sparsity_metrics['rare_threshold']} activations): {sparsity_metrics['dead_features_practical']:,} / {sae.d_hidden:,} ({sparsity_metrics['dead_fraction']:.2%})")
     print(f"  Most Active Feature: {sparsity_metrics['max_feature_activations']:,} activations")
     print(f"  Least Active:        {sparsity_metrics['min_feature_activations']:,} activations")
 

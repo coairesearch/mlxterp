@@ -59,6 +59,7 @@ dmypy.json
 
 # Jupyter
 .ipynb_checkpoints/
+*.ipynb_checkpoints
 
 # Environment
 .env
@@ -73,3 +74,12 @@ checkpoints/
 # Weights & Biases
 wandb/
 *.mlx/
+
+# Temporary files (never commit these)
+test_*.py
+debug_*.py
+check_*.py
+*_TEMP.md
+*_FIX.md
+*_SUMMARY.md
+scratch.*
