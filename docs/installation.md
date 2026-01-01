@@ -138,7 +138,7 @@ For contributing to mlxterp:
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 
 # Install with all dependencies
@@ -155,7 +155,7 @@ uv run mkdocs serve
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 
 # Install in editable mode with dev dependencies
