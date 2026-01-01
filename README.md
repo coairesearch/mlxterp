@@ -461,14 +461,14 @@ Please see [CONTRIBUTING.md](docs/contributing.md) for guidelines.
 
 ## Citation
 
-If you use mlxterp in your research, please cite:
+If you use mlxterp in your research, it would be nice if you could please cite:
 
 ```bibtex
 @software{mlxterp,
   title = {mlxterp: Mechanistic Interpretability for MLX},
-  author = {Your Name},
-  year = {2024},
-  url = {https://github.com/yourusername/mlxterp}
+  author = {Sigurd Schacht, COAI Research},
+  year = {2025},
+  url = {https://github.com/coairesearch/mlxterp}
 }
 ```
 
