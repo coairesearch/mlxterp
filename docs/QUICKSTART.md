@@ -6,7 +6,7 @@ Get started with mlxterp in 5 minutes!
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 
 # Install in development mode
@@ -176,10 +176,10 @@ with model.trace("The capital of Spain is",
 
 ## What's Next?
 
-1. **Read the full [README.md](README.md)** for detailed examples
-2. **Check [API.md](API.md)** for complete API reference
-3. **Explore [examples/](examples/)** for more use cases
-4. **Read [CLAUDE.md](CLAUDE.md)** to understand the architecture
+1. **Read the full [README](https://github.com/coairesearch/mlxterp#readme)** for detailed examples
+2. **Check the [API Reference](API.md)** for complete API documentation
+3. **Explore the [examples](https://github.com/coairesearch/mlxterp/tree/main/examples)** for more use cases
+4. **Read the [Architecture Guide](architecture.md)** to understand the design
 
 ## Troubleshooting
 
@@ -220,18 +220,16 @@ pip install -e .
 
 ## Community & Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/mlxterp/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/mlxterp/discussions)
+- **Issues**: [GitHub Issues](https://github.com/coairesearch/mlxterp/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/coairesearch/mlxterp/discussions)
 - **Examples**: See `examples/` directory
 
 ## Next Steps
 
 Try these examples in order:
 
-1. ✅ Basic tracing (you just did this!)
-2. 📝 [examples/basic_usage.py](examples/basic_usage.py) - More comprehensive examples
-3. 🔍 Explore your own models
-4. 🧪 Experiment with interventions
-5. 📊 Analyze activation patterns
-
-Happy exploring! 🎉
+1. Basic tracing (you just did this!)
+2. [examples/basic_usage.py](https://github.com/coairesearch/mlxterp/blob/main/examples/basic_usage.py) - More comprehensive examples
+3. Explore your own models
+4. Experiment with interventions
+5. Analyze activation patterns

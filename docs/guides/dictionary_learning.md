@@ -623,9 +623,7 @@ with model.trace("Generate text about...") as trace:
 - [Scaling Monosemanticity](https://transformer-circuits.pub/2024/scaling-monosemanticity/index.html) - Anthropic
 
 ### API Reference
-- [SAE API Documentation](../API.md#sae)
-- [SAEConfig Documentation](../API.md#saeconfig)
-- [InterpretableModel.train_sae()](../API.md#train_sae)
+- [API Documentation](../API.md) - Core mlxterp API reference
 
 ## Troubleshooting
 

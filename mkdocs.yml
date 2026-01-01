@@ -1,10 +1,10 @@
 site_name: mlxterp
 site_description: Mechanistic Interpretability for MLX on Apple Silicon
-site_author: Your Name
-site_url: https://github.com/yourusername/mlxterp
+site_author: Sigurd Schacht
+site_url: https://github.com/coairesearch/mlxterp
 
-repo_name: yourusername/mlxterp
-repo_url: https://github.com/yourusername/mlxterp
+repo_name: coairesearch/mlxterp
+repo_url: https://github.com/coairesearch/mlxterp
 edit_uri: edit/main/docs/
 
 theme:
@@ -98,8 +98,8 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/yourusername/mlxterp
+      link: https://github.com/coairesearch/mlxterp
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/mlxterp/
 
-copyright: Copyright &copy; 2024 Your Name
+copyright: Copyright &copy; 2025 Sigurd Schacht

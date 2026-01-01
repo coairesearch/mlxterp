@@ -1,8 +1,4 @@
-# License
-
-mlxterp is licensed under the MIT License.
-
-## MIT License
+MIT License
 
 Copyright (c) 2025 Sigurd Schacht
 
@@ -23,28 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-## Third-Party Licenses
-
-mlxterp depends on several third-party libraries, each with their own licenses:
-
-### MLX
-
-- **License**: MIT License
-- **Copyright**: © 2023 Apple Inc.
-- **Link**: [https://github.com/ml-explore/mlx](https://github.com/ml-explore/mlx)
-
-### Python
-
-- **License**: PSF License
-- **Link**: [https://www.python.org/psf/license/](https://www.python.org/psf/license/)
-
-## Acknowledgments
-
-mlxterp is inspired by:
-
-- **nnsight** - Generic model wrapping approach
-- **nnterp** - Clean API design
-- **TransformerLens** - Comprehensive interpretability features
-
-We thank the authors of these projects for their contributions to the mechanistic interpretability community.

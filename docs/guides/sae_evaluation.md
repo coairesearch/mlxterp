@@ -578,9 +578,9 @@ print("="*80)
 ## Resources
 
 - [Dictionary Learning Guide](dictionary_learning.md) - How to train SAEs
-- [SAE Examples](../../examples/) - Complete code examples
-- [SAE Roadmap](../../SAE_ROADMAP.md) - Development status
-- [Troubleshooting](../../TROUBLESHOOTING.md) - Common issues and solutions
+- [SAE Examples](https://github.com/coairesearch/mlxterp/tree/main/examples) - Complete code examples
+- [SAE Roadmap](https://github.com/coairesearch/mlxterp/blob/main/SAE_ROADMAP.md) - Development status
+- [Troubleshooting](https://github.com/coairesearch/mlxterp/blob/main/TROUBLESHOOTING.md) - Common issues and solutions
 
 ## References
 

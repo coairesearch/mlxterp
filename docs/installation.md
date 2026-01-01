@@ -24,7 +24,7 @@ pip install uv
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 
 # Create virtual environment and install dependencies
@@ -43,7 +43,7 @@ python -c "import mlxterp; print(mlxterp.__version__)"
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 
 # Create virtual environment (optional but recommended)

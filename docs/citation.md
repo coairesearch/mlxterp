@@ -5,11 +5,11 @@ If you use mlxterp in your research, please cite it as follows:
 ## BibTeX
 
 ```bibtex
-@software{mlxterp2024,
-  author = {Your Name},
+@software{mlxterp2025,
+  author = {Sigurd Schacht},
   title = {mlxterp: Mechanistic Interpretability for MLX},
-  year = {2024},
-  url = {https://github.com/yourusername/mlxterp},
+  year = {2025},
+  url = {https://github.com/coairesearch/mlxterp},
   version = {0.1.0}
 }
 ```
@@ -17,13 +17,13 @@ If you use mlxterp in your research, please cite it as follows:
 ## APA
 
 ```
-Your Name. (2024). mlxterp: Mechanistic Interpretability for MLX (Version 0.1.0) [Computer software]. https://github.com/yourusername/mlxterp
+Schacht, S. (2025). mlxterp: Mechanistic Interpretability for MLX (Version 0.1.0) [Computer software]. https://github.com/coairesearch/mlxterp
 ```
 
 ## MLA
 
 ```
-Your Name. mlxterp: Mechanistic Interpretability for MLX. Version 0.1.0, 2024. GitHub, https://github.com/yourusername/mlxterp.
+Schacht, Sigurd. mlxterp: Mechanistic Interpretability for MLX. Version 0.1.0, 2025. GitHub, https://github.com/coairesearch/mlxterp.
 ```
 
 ## Related Work
@@ -73,4 +73,4 @@ We thank:
 
 ## Contributing
 
-If you've contributed to mlxterp, thank you! Contributors are listed in [CONTRIBUTORS.md](https://github.com/yourusername/mlxterp/blob/main/CONTRIBUTORS.md).
+Contributions to mlxterp are welcome! See the [Contributing Guide](contributing.md) for guidelines.

@@ -862,4 +862,4 @@ final_results = mx.concatenate(results, axis=0)
 
 - [API Reference](API.md) - Complete API documentation
 - [Quick Start](QUICKSTART.md) - Getting started guide
-- [GitHub Examples](https://github.com/yourusername/mlxterp/tree/main/examples) - More examples
+- [GitHub Examples](https://github.com/coairesearch/mlxterp/tree/main/examples) - More examples

@@ -399,7 +399,7 @@ for test_text in ["London is in England", "Tokyo is in Japan"]:
 
 - **Evaluation**: See [SAE Evaluation Guide](sae_evaluation.md) for quality metrics
 - **Training**: See [Dictionary Learning Guide](dictionary_learning.md) for training SAEs
-- **Examples**: Check `examples/phase2_feature_analysis.py` for complete code
+- **Examples**: Check [phase2_feature_analysis.py](https://github.com/coairesearch/mlxterp/blob/main/examples/phase2_feature_analysis.py) for complete code
 - **API Reference**: See [API Documentation](../API.md) for full details
 
 ---

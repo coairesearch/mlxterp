@@ -24,7 +24,7 @@ A clean, intuitive library for mechanistic interpretability research on Apple Si
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone and install
-git clone https://github.com/yourusername/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 uv sync
 
@@ -35,7 +35,7 @@ uv add mlx-lm
 ### Using pip
 
 ```bash
-git clone https://github.com/yourusername/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 pip install -e .
 pip install mlx-lm  # For loading real models

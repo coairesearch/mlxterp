@@ -144,7 +144,7 @@ The library follows a **functional-first paradigm** that aligns with MLX's desig
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone and setup
-git clone https://github.com/yourusername/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 
 # Install with all dependencies

@@ -40,7 +40,7 @@ print(f"Attention layer 3 output shape: {attn_3.shape}")
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone the repository
-git clone https://github.com/yourusername/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 
 # Create environment and install
@@ -54,7 +54,7 @@ source .venv/bin/activate
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/mlxterp
+git clone https://github.com/coairesearch/mlxterp
 cd mlxterp
 
 # Install in development mode
@@ -137,20 +137,20 @@ The `activation_patching()` helper automates the entire workflow. Learn more in 
 
 ## Community
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/mlxterp/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/mlxterp/discussions)
+- **Issues**: [GitHub Issues](https://github.com/coairesearch/mlxterp/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/coairesearch/mlxterp/discussions)
 
 ## Citation
 
 ```bibtex
 @software{mlxterp,
   title = {mlxterp: Mechanistic Interpretability for MLX},
-  author = {Your Name},
-  year = {2024},
-  url = {https://github.com/yourusername/mlxterp}
+  author = {Sigurd Schacht},
+  year = {2025},
+  url = {https://github.com/coairesearch/mlxterp}
 }
 ```
 
 ## License
 
-MIT License - see [LICENSE](https://github.com/yourusername/mlxterp/blob/main/LICENSE) for details.
+MIT License - see [LICENSE](https://github.com/coairesearch/mlxterp/blob/main/LICENSE) for details.
