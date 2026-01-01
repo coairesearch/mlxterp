@@ -300,9 +300,8 @@ class MyInterventionClass:
 
 ## Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/mlxterp/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/mlxterp/discussions)
-- **Email**: your.email@example.com
+- **Issues**: [GitHub Issues](https://github.com/coairesearch/mlxterp/issues)
+
 
 ## License
 
