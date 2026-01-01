@@ -58,12 +58,16 @@ def add_vector(vector: mx.array) -> Callable[[mx.array], mx.array]:
     return _add
 
 
-def replace_with(value: Union[mx.array, float]) -> Callable[[mx.array], mx.array]:
+def replace_with(value: Union[mx.array, float], align: str = "end") -> Callable[[mx.array], mx.array]:
     """
     Replace activation with a fixed value.
 
     Args:
         value: Replacement value (array or scalar)
+        align: How to align when sequence lengths differ:
+            - "end": Align at end (last tokens match) - default, best for activation patching
+            - "start": Align at start (first tokens match)
+            - "strict": Raise error if shapes don't match
 
     Returns:
         Intervention function
@@ -71,10 +75,58 @@ def replace_with(value: Union[mx.array, float]) -> Callable[[mx.array], mx.array
     Example:
         with model.trace(input, interventions={"layers.4": replace_with(0.0)}):
             ...
+
+        # Activation patching with different sequence lengths:
+        with model.trace(clean_text) as trace:
+            clean_act = trace.activations["model.model.layers.10.mlp"]
+        with model.trace(corrupted_text,
+                        interventions={"layers.10.mlp": replace_with(clean_act)}):
+            patched = model.output.save()
     """
     def _replace(x: mx.array) -> mx.array:
         if isinstance(value, (int, float)):
             return mx.full(x.shape, value)
+
+        # If shapes match exactly, use the value directly
+        if value.shape == x.shape:
+            return value
+
+        # Handle sequence length mismatch (common in activation patching)
+        # Assuming shape is (batch, seq_len, hidden_dim) or (seq_len, hidden_dim)
+        if value.ndim >= 2 and x.ndim >= 2:
+            # Get sequence dimension (usually axis 1 for 3D, axis 0 for 2D)
+            seq_axis = 1 if value.ndim == 3 else 0
+            value_seq_len = value.shape[seq_axis]
+            x_seq_len = x.shape[seq_axis]
+
+            if value_seq_len != x_seq_len:
+                if align == "strict":
+                    raise ValueError(
+                        f"Shape mismatch: replacement has shape {value.shape} but target has shape {x.shape}. "
+                        f"Use align='end' or align='start' to handle different sequence lengths."
+                    )
+
+                # Create output with same shape as x
+                result = x.copy() if hasattr(x, 'copy') else mx.array(x)
+
+                if align == "end":
+                    # Align at end: patch last min(value_seq_len, x_seq_len) tokens
+                    min_len = min(value_seq_len, x_seq_len)
+                    if value.ndim == 3:
+                        result[:, -min_len:, :] = value[:, -min_len:, :]
+                    else:
+                        result[-min_len:, :] = value[-min_len:, :]
+                else:  # align == "start"
+                    # Align at start: patch first min(value_seq_len, x_seq_len) tokens
+                    min_len = min(value_seq_len, x_seq_len)
+                    if value.ndim == 3:
+                        result[:, :min_len, :] = value[:, :min_len, :]
+                    else:
+                        result[:min_len, :] = value[:min_len, :]
+
+                return result
+
+        # Fallback: try to broadcast (will fail if truly incompatible)
         return mx.broadcast_to(value, x.shape)
     return _replace
 
