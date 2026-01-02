@@ -435,6 +435,268 @@ class AnalysisMixin:
 
         return results
 
+    def tuned_logit_lens(
+        self,
+        text: str,
+        tuned_lens: Any,
+        top_k: int = 1,
+        layers: Optional[List[int]] = None,
+        position: Optional[int] = None,
+        plot: bool = False,
+        max_display_tokens: int = 15,
+        figsize: tuple = (16, 10),
+        cmap: str = 'viridis',
+        font_family: Optional[str] = None,
+    ) -> Dict[int, List[List[tuple]]]:
+        """
+        Apply tuned lens for improved layer-wise predictions.
+
+        The tuned lens technique (Belrose et al., 2023) uses learned affine
+        transformations for each layer to correct for coordinate system mismatches,
+        producing more accurate intermediate predictions than the standard logit lens.
+
+        Args:
+            text: Input text to analyze
+            tuned_lens: Trained TunedLens instance with layer translators
+            top_k: Number of top predictions to return per position (default: 1)
+            layers: Specific layer indices to analyze (None = all layers)
+            position: Specific position to analyze (None = all positions).
+                     Supports negative indexing (-1 = last position).
+            plot: If True, display a heatmap visualization showing top predictions
+            max_display_tokens: Maximum number of tokens to show in visualization (from the end)
+            figsize: Figure size for plot (width, height)
+            cmap: Colormap for heatmap (default: 'viridis')
+            font_family: Font to use for plot (for CJK support use 'Arial Unicode MS' or None for auto-detect)
+
+        Returns:
+            Dict mapping layer_idx -> list of positions -> list of (token_id, score, token_str) tuples
+            Structure: {layer_idx: [[pos_0_predictions], [pos_1_predictions], ...]}
+
+        Example:
+            >>> # Train or load tuned lens
+            >>> tuned_lens = model.train_tuned_lens(texts, num_steps=250)
+            >>> # Or load pre-trained:
+            >>> # tuned_lens = TunedLens.load("tuned_lens.safetensors")
+            >>>
+            >>> # Apply tuned lens
+            >>> results = model.tuned_logit_lens(
+            ...     "The capital of France is",
+            ...     tuned_lens,
+            ...     layers=[0, 5, 10, 15],
+            ...     plot=True
+            ... )
+            >>>
+            >>> # Compare with regular logit lens
+            >>> regular = model.logit_lens("The capital of France is", layers=[0, 5, 10, 15])
+
+        Reference:
+            Belrose et al., "Eliciting Latent Predictions from Transformers with the Tuned Lens"
+            https://arxiv.org/abs/2303.08112
+        """
+        from .core.module_resolver import find_layer_key_pattern
+
+        # Run trace to get all layer outputs
+        with self.trace(text) as trace:
+            pass
+
+        # Get tokens for displaying input
+        tokens = self.encode(text)
+
+        # Get final layer norm
+        final_norm_layer = self._module_resolver.get_final_norm()
+
+        # Determine which layers to analyze
+        if layers is None:
+            layers = list(range(len(self.layers)))
+
+        results = {}
+
+        for layer_idx in layers:
+            # Find the correct layer key pattern for this model
+            layer_key = find_layer_key_pattern(trace.activations, layer_idx)
+            if layer_key is None:
+                continue
+
+            layer_output = trace.activations[layer_key]  # Shape: (batch, seq_len, hidden_dim)
+            if layer_output.ndim != 3:
+                continue
+            batch_size, seq_len, hidden_dim = layer_output.shape
+
+            layer_predictions = []
+
+            # Determine positions to analyze
+            if position is not None:
+                actual_pos = position if position >= 0 else seq_len + position
+                positions_to_analyze = [actual_pos]
+            else:
+                positions_to_analyze = range(seq_len)
+
+            for pos in positions_to_analyze:
+                hidden = layer_output[0, pos, :]  # Shape: (hidden_dim,)
+
+                # Apply tuned lens translator for this layer
+                translated = tuned_lens(hidden, layer_idx)
+
+                # Apply final layer norm if available
+                if final_norm_layer is not None:
+                    normalized = final_norm_layer(translated)
+                else:
+                    normalized = translated
+
+                # Get token predictions
+                predictions = self.get_token_predictions(normalized, top_k=top_k, return_scores=True)
+
+                # Add token strings
+                predictions_with_str = [
+                    (token_id, score, self.token_to_str(token_id))
+                    for token_id, score in predictions
+                ]
+                layer_predictions.append(predictions_with_str)
+
+            results[layer_idx] = layer_predictions
+
+        # Generate visualization if requested
+        if plot:
+            self._plot_logit_lens(
+                results, text, tokens, max_display_tokens, figsize, cmap, font_family,
+                title_prefix="Tuned Lens"
+            )
+
+        return results
+
+    def _plot_logit_lens(
+        self,
+        results: Dict[int, List[List[tuple]]],
+        text: str,
+        tokens: List[int],
+        max_display_tokens: int = 15,
+        figsize: tuple = (16, 10),
+        cmap: str = 'viridis',
+        font_family: Optional[str] = None,
+        title_prefix: str = "Logit Lens"
+    ) -> None:
+        """
+        Internal method to plot logit lens or tuned lens results.
+
+        Args:
+            results: Dict mapping layer_idx -> predictions
+            text: Original input text
+            tokens: Token IDs
+            max_display_tokens: Max tokens to display
+            figsize: Figure size
+            cmap: Colormap
+            font_family: Font family for rendering
+            title_prefix: Prefix for the title ("Logit Lens" or "Tuned Lens")
+        """
+        try:
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as mpatches
+            from matplotlib import rcParams
+        except ImportError:
+            raise ImportError("Plotting requires matplotlib. Install with: pip install matplotlib")
+
+        # Set up font for potential CJK characters
+        if font_family:
+            rcParams['font.family'] = font_family
+        else:
+            import platform
+            if platform.system() == 'Darwin':
+                rcParams['font.family'] = ['Arial Unicode MS', 'sans-serif']
+            else:
+                rcParams['font.family'] = ['DejaVu Sans', 'sans-serif']
+
+        # Get input tokens for display
+        input_tokens_str = [self.token_to_str(t) for t in tokens]
+
+        # Limit to last N tokens for display
+        if len(input_tokens_str) > max_display_tokens:
+            input_tokens_str = input_tokens_str[-max_display_tokens:]
+            # Adjust results to match
+            offset = len(tokens) - max_display_tokens
+            trimmed_results = {}
+            for layer_idx, preds in results.items():
+                trimmed_results[layer_idx] = preds[offset:]
+            results = trimmed_results
+
+        # Build prediction matrix for heatmap
+        layer_indices = sorted(results.keys())
+        num_layers = len(layer_indices)
+        num_positions = len(input_tokens_str)
+
+        if num_layers == 0 or num_positions == 0:
+            print("No data to plot")
+            return
+
+        # Create matrix of top predictions (token strings)
+        predictions_matrix = []
+        for layer_idx in layer_indices:
+            layer_preds = results[layer_idx]
+            row = []
+            for pos_preds in layer_preds:
+                if pos_preds:
+                    top_token_str = pos_preds[0][2]
+                    row.append(top_token_str)
+                else:
+                    row.append("")
+            predictions_matrix.append(row)
+
+        # Create color mapping for unique tokens
+        all_tokens = set()
+        for row in predictions_matrix:
+            all_tokens.update(row)
+        all_tokens = sorted(list(all_tokens))
+        token_to_color = {t: i for i, t in enumerate(all_tokens)}
+
+        # Create numeric matrix for coloring
+        color_matrix = []
+        for row in predictions_matrix:
+            color_row = [token_to_color.get(t, 0) for t in row]
+            color_matrix.append(color_row)
+
+        # Plot
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Create heatmap
+        import numpy as np
+        color_array = np.array(color_matrix)
+        im = ax.imshow(color_array, cmap=cmap, aspect='auto')
+
+        # Set ticks
+        ax.set_xticks(range(num_positions))
+        ax.set_yticks(range(num_layers))
+
+        # Format x-tick labels
+        x_labels = []
+        for i, t in enumerate(input_tokens_str):
+            display_t = repr(t)[1:-1] if len(t) <= 10 else repr(t[:10])[1:-1] + "..."
+            x_labels.append(f"{display_t}")
+        ax.set_xticklabels(x_labels, rotation=45, ha='right', fontsize=9)
+        ax.set_yticklabels([f"L{i}" for i in layer_indices], fontsize=9)
+
+        # Add text annotations
+        for i in range(num_layers):
+            for j in range(num_positions):
+                pred_token = predictions_matrix[i][j]
+                display_pred = pred_token[:8] if len(pred_token) > 8 else pred_token
+                display_pred = repr(display_pred)[1:-1]
+                text_color = 'white' if color_array[i, j] > len(all_tokens) / 2 else 'black'
+                ax.text(j, i, display_pred, ha='center', va='center',
+                       fontsize=7, color=text_color, weight='bold')
+
+        ax.set_xlabel("Input Token Position", fontsize=12, weight='bold')
+        ax.set_ylabel("Layer", fontsize=12, weight='bold')
+        title_text = text if len(text) <= 60 else f"{text[:60]}..."
+        ax.set_title(f'Token Predictions Across Layers ({title_prefix})\nInput: "{title_text}"',
+                    fontsize=14, pad=20, weight='bold')
+
+        legend_text = "Color represents predicted token\nShowing unique tokens across all predictions"
+        ax.text(0.02, -0.15, legend_text, transform=ax.transAxes,
+               fontsize=9, verticalalignment='top',
+               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+        plt.tight_layout()
+        plt.show()
+
     def activation_patching(
         self,
         clean_text: str,

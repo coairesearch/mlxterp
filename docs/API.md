@@ -454,6 +454,161 @@ results = model.logit_lens(
 
 ---
 
+#### Method: `tuned_logit_lens`
+
+Apply tuned lens for improved layer-wise predictions.
+
+The tuned lens technique (Belrose et al., 2023) uses learned affine transformations for each layer to correct for coordinate system mismatches between layers, producing more accurate intermediate predictions than the standard logit lens.
+
+```python
+model.tuned_logit_lens(
+    text: str,
+    tuned_lens: TunedLens,
+    top_k: int = 1,
+    layers: Optional[List[int]] = None,
+    position: Optional[int] = None,
+    plot: bool = False,
+    max_display_tokens: int = 15,
+    figsize: tuple = (16, 10),
+    cmap: str = 'viridis',
+    font_family: Optional[str] = None
+) -> Dict[int, List[List[tuple]]]
+```
+
+**Parameters:**
+
+- **text** (`str`): Input text to analyze
+- **tuned_lens** (`TunedLens`): Trained TunedLens instance with layer translators
+- **top_k** (`int`, default: `1`): Number of top predictions to return per position
+- **layers** (`Optional[List[int]]`, default: `None`): Specific layers to analyze (None = all)
+- **position** (`Optional[int]`, default: `None`): Specific position to analyze (None = all). Supports negative indexing.
+- **plot** (`bool`, default: `False`): If True, display a heatmap visualization
+- **max_display_tokens** (`int`, default: `15`): Maximum number of tokens to show in visualization
+- **figsize** (`tuple`, default: `(16, 10)`): Figure size for plot
+- **cmap** (`str`, default: `'viridis'`): Colormap for heatmap
+- **font_family** (`Optional[str]`): Font for plot (auto-detected if None)
+
+**Returns:** Dict mapping `layer_idx` -> list of positions -> list of `(token_id, score, token_str)` tuples
+
+**Example:**
+
+```python
+from mlxterp import InterpretableModel, TunedLens
+
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+
+# Option 1: Train new tuned lens
+tuned_lens = model.train_tuned_lens(
+    dataset=["Sample text 1", "Sample text 2", ...],
+    num_steps=250,
+    save_path="tuned_lens_llama.npz"
+)
+
+# Option 2: Load pre-trained tuned lens
+tuned_lens = model.load_tuned_lens("tuned_lens_llama.npz")
+
+# Apply tuned lens
+results = model.tuned_logit_lens(
+    "The capital of France is",
+    tuned_lens,
+    layers=[0, 5, 10, 15],
+    plot=True
+)
+
+# Compare with regular logit lens
+regular_results = model.logit_lens("The capital of France is", layers=[0, 5, 10, 15])
+```
+
+**Reference:** Belrose et al., "Eliciting Latent Predictions from Transformers with the Tuned Lens" (https://arxiv.org/abs/2303.08112)
+
+---
+
+#### Method: `train_tuned_lens`
+
+Train a tuned lens for this model.
+
+The tuned lens technique trains small affine transformations for each layer to correct for coordinate system mismatches, producing more accurate intermediate predictions.
+
+```python
+model.train_tuned_lens(
+    dataset: List[str],
+    num_steps: int = 250,
+    learning_rate: float = 1.0,
+    momentum: float = 0.9,
+    max_seq_len: int = 2048,
+    batch_size: int = 1,
+    gradient_clip: float = 1.0,
+    save_path: Optional[str] = None,
+    verbose: bool = True,
+    callback: Optional[Callable[[int, float], None]] = None
+) -> TunedLens
+```
+
+**Parameters:**
+
+- **dataset** (`List[str]`): List of text strings for training
+- **num_steps** (`int`, default: `250`): Number of training steps
+- **learning_rate** (`float`, default: `1.0`): Initial learning rate (uses linear decay)
+- **momentum** (`float`, default: `0.9`): Nesterov momentum coefficient
+- **max_seq_len** (`int`, default: `2048`): Maximum sequence length for training chunks
+- **batch_size** (`int`, default: `1`): Batch size
+- **gradient_clip** (`float`, default: `1.0`): Gradient clipping norm
+- **save_path** (`Optional[str]`): Path to save trained weights
+- **verbose** (`bool`, default: `True`): Print training progress
+- **callback** (`Optional[Callable]`): Callback function called with `(step, loss)` after each step
+
+**Returns:** Trained `TunedLens` instance
+
+**Training Details (from paper):**
+- Optimizer: SGD with Nesterov momentum (0.9)
+- Learning rate: 1.0 with linear decay over training steps
+- Gradient clipping: norm 1.0
+- Loss: KL divergence between translator prediction and final output
+
+**Example:**
+
+```python
+# Load sample texts for training
+texts = [
+    "The capital of France is Paris.",
+    "Machine learning is a subset of artificial intelligence.",
+    # ... more training texts
+]
+
+# Train tuned lens
+tuned_lens = model.train_tuned_lens(
+    dataset=texts,
+    num_steps=250,
+    save_path="my_tuned_lens.npz",
+    verbose=True
+)
+```
+
+---
+
+#### Method: `load_tuned_lens`
+
+Load a pre-trained tuned lens from a file.
+
+```python
+model.load_tuned_lens(path: str) -> TunedLens
+```
+
+**Parameters:**
+
+- **path** (`str`): Path to the saved tuned lens weights (expects `.npz` and `.json` files)
+
+**Returns:** Loaded `TunedLens` instance
+
+**Example:**
+
+```python
+tuned_lens = model.load_tuned_lens("tuned_lens_llama.npz")
+results = model.tuned_logit_lens("Hello world", tuned_lens)
+```
+
+---
+
 #### Method: `activation_patching`
 
 Automated activation patching to identify important layers for a task.
@@ -1217,6 +1372,57 @@ resolver = ModuleResolver(
 # Cache invalidation (after modifying model structure)
 resolver.clear_cache()  # Force re-resolution on next access
 ```
+
+---
+
+### Class: `TunedLens`
+
+Learned affine translators for each layer, implementing the Tuned Lens technique from Belrose et al. (2023).
+
+The tuned lens uses layer-specific affine transformations (Wx + b) to map hidden states from each layer into a space where the final output projection can make accurate predictions. This corrects for coordinate system mismatches between layers.
+
+```python
+from mlxterp import TunedLens
+
+tuned_lens = TunedLens(num_layers=32, hidden_dim=4096)
+```
+
+**Parameters:**
+
+- **num_layers** (`int`): Number of transformer layers in the model
+- **hidden_dim** (`int`): Dimension of hidden states
+
+**Attributes:**
+
+- `num_layers`: Number of layers
+- `hidden_dim`: Hidden dimension
+- `translators`: List of linear layers, one per transformer layer
+
+**Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `__call__(h, layer_idx)` | Apply translator for a specific layer |
+| `save(path)` | Save weights and config to files (.npz and .json) |
+| `load(path)` | Load tuned lens from saved files (classmethod) |
+
+**Example:**
+
+```python
+from mlxterp import TunedLens
+
+# Create tuned lens
+tuned_lens = TunedLens(num_layers=32, hidden_dim=4096)
+
+# Apply to hidden state from layer 10
+translated = tuned_lens(hidden_state, layer_idx=10)
+
+# Save and load
+tuned_lens.save("my_tuned_lens")
+loaded = TunedLens.load("my_tuned_lens")
+```
+
+**Reference:** Belrose et al., "Eliciting Latent Predictions from Transformers with the Tuned Lens" (https://arxiv.org/abs/2303.08112)
 
 ---
 
