@@ -1334,10 +1334,11 @@
 <p><strong>Use specific module names</strong>: Target interventions precisely (e.g., <code>model.model.layers.5.self_attn.q_proj</code> instead of just <code>layers.5</code>)</p>
 </li>
 <li>
-<p><strong>Memory management</strong>: Traces store all activations - clear them when done:
+<p><strong>Memory management</strong>: Traces store all activations which remain available after the context:
    <div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">with</span> <span class="n">model</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span> <span class="k">as</span> <span class="n">trace</span><span class="p">:</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>    <span class="n">act</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">activations</span><span class="p">[</span><span class="s1">&#39;some.module&#39;</span><span class="p">]</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># trace.activations is cleared after exiting context</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="c1"># trace.activations remains available after exiting context</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Delete trace when done to free memory: del trace</span>
 </span></code></pre></div></p>
 </li>
 <li>

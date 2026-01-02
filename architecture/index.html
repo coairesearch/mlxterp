@@ -1898,18 +1898,18 @@
 <h4 id="layerlistproxy">LayerListProxy<a class="headerlink" href="#layerlistproxy" title="Permanent link">&para;</a></h4>
 <p>Provides indexed access to layers:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">model</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>  <span class="c1"># Returns ModuleProxy</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">model</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">attn</span><span class="o">.</span><span class="n">output</span>  <span class="c1"># Returns OutputProxy</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">model</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">self_attn</span><span class="o">.</span><span class="n">output</span>  <span class="c1"># Returns OutputProxy (use self_attn for mlx-lm models)</span>
 </span></code></pre></div>
 <h3 id="3-trace-context">3. Trace Context<a class="headerlink" href="#3-trace-context" title="Permanent link">&para;</a></h3>
 <p><strong>File</strong>: <code>mlxterp/core/trace.py</code></p>
 <p>Context manager for tracing execution.</p>
 <h4 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h4>
 <ol>
-<li><strong><code>__enter__</code></strong>: Setup context, push to global stack</li>
-<li><strong>User code</strong>: Access layers, set interventions</li>
-<li><strong><code>__exit__</code></strong>: Execute model forward pass, capture activations, pop context</li>
+<li><strong><code>__enter__</code></strong>: Setup context, push to global stack, execute forward pass</li>
+<li><strong>User code</strong>: Access activations, call <code>.save()</code> on outputs</li>
+<li><strong><code>__exit__</code></strong>: Copy saved values and activations, restore layers, pop context</li>
 </ol>
-<p><strong>Design Decision</strong>: Execution happens in <code>__exit__</code> to allow setup during the context.</p>
+<p><strong>Design Decision</strong>: Forward pass executes in <code>__enter__</code> so activations are immediately available inside the context. Saved values and activations are copied in <code>__exit__</code> so they remain available after the context.</p>
 <h4 id="global-state-management">Global State Management<a class="headerlink" href="#global-state-management" title="Permanent link">&para;</a></h4>
 <p>Uses a stack to support nested traces (though typically only one active):</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">class</span> <span class="nc">TraceContext</span><span class="p">:</span>
@@ -2016,14 +2016,18 @@
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>        <span class="c1"># Setup: Create and push context</span>
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="o">=</span> <span class="n">TraceContext</span><span class="p">()</span>
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>        <span class="n">TraceContext</span><span class="o">.</span><span class="n">push</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="p">)</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>        <span class="k">return</span> <span class="bp">self</span>
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>    <span class="k">def</span> <span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>        <span class="c1"># Execute: Run model forward pass</span>
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_forward</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>        <span class="c1"># Execute: Run model forward pass immediately</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>        <span class="c1"># This allows users to access activations inside the with block</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_forward</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>        <span class="k">return</span> <span class="bp">self</span>
 </span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>
-</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>        <span class="c1"># Cleanup: Pop context</span>
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>        <span class="n">TraceContext</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>    <span class="k">def</span> <span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>        <span class="c1"># Copy saved_values from context (for values saved inside the block)</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">saved_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">saved_values</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>
+</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>        <span class="c1"># Cleanup: Pop context</span>
+</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>        <span class="n">TraceContext</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
 </span></code></pre></div>
 <p><strong>Benefits</strong>:
 - Guaranteed cleanup

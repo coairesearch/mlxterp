@@ -21,6 +21,11 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://github.com/coairesearch/mlxterp/TUTORIAL_PAPERS_PLAN/</loc>
+         <lastmod>2026-01-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://github.com/coairesearch/mlxterp/architecture/</loc>
          <lastmod>2026-01-02</lastmod>
          <changefreq>daily</changefreq>
