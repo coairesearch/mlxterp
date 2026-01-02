@@ -52,6 +52,7 @@ class ModuleResolver:
     LM_HEAD_PATHS = [
         "lm_head",                  # Standard location
         "model.lm_head",            # With model wrapper
+        "model.model.lm_head",      # mlx-lm double-wrapped
         "output",                   # Some Llama implementations
         "head",                     # Alternative naming
     ]

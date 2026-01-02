@@ -48,7 +48,7 @@ InterpretableModel(
 
 - **norm_path** (`Optional[str]`, default: `None`): Override path for the final layer normalization. Used in `logit_lens` for projecting intermediate activations. Auto-detected if not specified. Tried paths: `model.norm`, `model.model.norm`, `norm`, `ln_f`, `model.ln_f`.
 
-- **lm_head_path** (`Optional[str]`, default: `None`): Override path for the output projection layer. If not found, falls back to weight-tied embedding. Tried paths: `lm_head`, `model.lm_head`, `output`, `head`.
+- **lm_head_path** (`Optional[str]`, default: `None`): Override path for the output projection layer. If not found, falls back to weight-tied embedding. Tried paths: `lm_head`, `model.lm_head`, `model.model.lm_head`, `output`, `head`.
 
 **Returns:** `InterpretableModel` instance
 
@@ -1189,7 +1189,7 @@ ModuleResolver(
 |-----------|-----------------|
 | Embedding | `model.embed_tokens`, `model.model.embed_tokens`, `embed_tokens`, `tok_embeddings`, `wte` |
 | Final Norm | `model.norm`, `model.model.norm`, `norm`, `ln_f`, `model.ln_f` |
-| LM Head | `lm_head`, `model.lm_head`, `output`, `head` (falls back to embedding if not found) |
+| LM Head | `lm_head`, `model.lm_head`, `model.model.lm_head`, `output`, `head` (falls back to embedding if not found) |
 
 **Example:**
 
