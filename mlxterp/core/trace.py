@@ -3,7 +3,7 @@ Tracing context manager for capturing model execution.
 
 Provides the clean context manager API:
     with model.trace("input text"):
-        output = model.layers[3].attn.output.save()
+        output = model.layers[3].self_attn.output.save()
 """
 
 import mlx.core as mx
@@ -16,13 +16,14 @@ class Trace:
     Context manager for tracing model execution.
 
     Usage:
-        with model.trace(input_data) as tracer:
-            # Access activations
-            attn = model.layers[3].attn.output.save()
+        with model.trace(input_data) as trace:
+            # Access activations (use self_attn for mlx-lm models)
+            attn = model.layers[3].self_attn.output.save()
 
-        # After context, saved values available
-        result = tracer.output
-        saved = tracer.saved_values
+        # After context, saved values and activations are available
+        result = trace.output
+        saved = trace.saved_values
+        activations = trace.activations
     """
 
     def __init__(
@@ -88,8 +89,10 @@ class Trace:
             # Store output in context for access via model.output
             if self.context:
                 self.context.activations["__model_output__"] = self.output
-                self.saved_values = self.context.saved_values.copy()
+                # Copy activations so they're available inside the with block
                 self.activations = self.context.activations.copy()
+                # Note: saved_values are updated in __exit__ to capture
+                # values saved inside the with block via .save() calls
         except Exception as e:
             # Clean up on error
             self._restore_model_layers()
@@ -103,7 +106,15 @@ class Trace:
         Exit the trace context.
 
         Cleans up the global context and restores original layers.
+        Copies saved_values and activations from context so they're
+        available after the with block.
         """
+        # Copy saved_values and activations from context BEFORE cleanup
+        # This ensures values saved inside the with block are available
+        if self.context:
+            self.saved_values = self.context.saved_values.copy()
+            self.activations = self.context.activations.copy()
+
         # Restore original layers
         self._restore_model_layers()
 
@@ -415,11 +426,20 @@ class Trace:
             return mx.array(padded)
 
         elif isinstance(inputs, mx.array):
+            # Ensure batch dimension exists
+            if inputs.ndim == 1:
+                return inputs.reshape(1, -1)
             return inputs
 
         elif isinstance(inputs, (list, tuple)):
-            # Assume it's already tokenized
-            return mx.array(inputs)
+            # Assume it's already tokenized - check if it's a list of ints (single sequence)
+            # or a list of lists (batch of sequences)
+            if inputs and all(isinstance(x, int) for x in inputs):
+                # Single sequence of token IDs - wrap in batch dimension
+                return mx.array([inputs])
+            else:
+                # Batch of sequences
+                return mx.array(inputs)
 
         else:
             raise ValueError(f"Unsupported input type: {type(inputs)}")

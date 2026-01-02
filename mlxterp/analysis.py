@@ -30,7 +30,7 @@ class AnalysisMixin:
         hidden_state: mx.array,
         top_k: int = 10,
         return_scores: bool = False
-    ) -> Union[List[int], List[tuple]]:
+    ) -> Union[List[int], List[tuple], List[List]]:
         """
         Decode hidden states to token predictions using the model's output projection.
 
@@ -43,7 +43,8 @@ class AnalysisMixin:
             return_scores: If True, return (token_id, score) tuples instead of just token_ids
 
         Returns:
-            List of token IDs or (token_id, score) tuples
+            For 1D input: List of token IDs or (token_id, score) tuples
+            For 2D input: List of lists, one per batch element
 
         Example:
             >>> with model.trace("Hello") as trace:
@@ -56,7 +57,23 @@ class AnalysisMixin:
             >>> # Decode to words
             >>> for token_id in predictions:
             >>>     print(model.token_to_str(token_id))
+            >>>
+            >>> # Batched predictions
+            >>> hidden_batch = layer_6[:, -1, :]  # (batch, hidden_dim)
+            >>> batch_preds = model.get_token_predictions(hidden_batch, top_k=5)
+            >>> # batch_preds is a list of lists, one per batch element
         """
+        # Handle batched input
+        is_batched = hidden_state.ndim == 2
+        if is_batched:
+            # Process each batch element separately
+            batch_results = []
+            for i in range(hidden_state.shape[0]):
+                single_result = self.get_token_predictions(
+                    hidden_state[i], top_k=top_k, return_scores=return_scores
+                )
+                batch_results.append(single_result)
+            return batch_results
         # Get embedding weights for output projection
         # For weight-tied models, embedding.T is used as lm_head
         if hasattr(self.model, 'lm_head'):
@@ -141,6 +158,7 @@ class AnalysisMixin:
         text: str,
         top_k: int = 1,
         layers: Optional[List[int]] = None,
+        position: Optional[int] = None,
         plot: bool = False,
         max_display_tokens: int = 15,
         figsize: tuple = (16, 10),
@@ -158,6 +176,8 @@ class AnalysisMixin:
             text: Input text to analyze
             top_k: Number of top predictions to return per position (default: 1)
             layers: Specific layer indices to analyze (None = all layers)
+            position: Specific position to analyze (None = all positions).
+                     Supports negative indexing (-1 = last position).
             plot: If True, display a heatmap visualization showing top predictions
             max_display_tokens: Maximum number of tokens to show in visualization (from the end)
             figsize: Figure size for plot (width, height)
@@ -167,6 +187,7 @@ class AnalysisMixin:
         Returns:
             Dict mapping layer_idx -> list of positions -> list of (token_id, score, token_str) tuples
             Structure: {layer_idx: [[pos_0_predictions], [pos_1_predictions], ...]}
+            If position is specified, each layer will have a single list of predictions.
 
         Example:
             >>> # Get top prediction per position per layer
@@ -176,6 +197,9 @@ class AnalysisMixin:
             >>> for pos_idx, predictions in enumerate(results[10]):
             >>>     top_token = predictions[0][2]  # Get top token string
             >>>     print(f"Position {pos_idx}: {top_token}")
+            >>>
+            >>> # Analyze only the last position
+            >>> results = model.logit_lens("The capital of France is", position=-1)
             >>>
             >>> # Visualize with heatmap
             >>> results = model.logit_lens("The Eiffel Tower is located in the city of", plot=True)
@@ -214,8 +238,16 @@ class AnalysisMixin:
 
             layer_predictions = []
 
+            # Determine positions to analyze
+            if position is not None:
+                # Handle negative indexing
+                actual_pos = position if position >= 0 else seq_len + position
+                positions_to_analyze = [actual_pos]
+            else:
+                positions_to_analyze = range(seq_len)
+
             # For each position in the sequence
-            for pos in range(seq_len):
+            for pos in positions_to_analyze:
                 hidden = layer_output[0, pos, :]  # Shape: (hidden_dim,)
 
                 # Apply final layer norm
@@ -366,7 +398,12 @@ class AnalysisMixin:
         Args:
             clean_text: Clean/correct input text
             corrupted_text: Corrupted/incorrect input text
-            component: Component to patch ("mlp", "self_attn", "output", or full path like "mlp.gate_proj")
+            component: Component to patch. Valid options:
+                - "mlp": The MLP/feed-forward component
+                - "self_attn": The self-attention component
+                - Full paths like "mlp.gate_proj", "self_attn.q_proj"
+                Note: Use the component names from your model architecture.
+                For mlx-lm models, use "self_attn" (not "attn").
             layers: Specific layers to test (None = all layers)
             metric: Distance metric. Options:
                 - "l2": Euclidean distance (default, with overflow protection)
@@ -459,24 +496,60 @@ class AnalysisMixin:
         for layer_idx in layers:
             print(f"  Layer {layer_idx:2d}...", end="\r")
 
-            # Build component key
-            if "." in component:
+            # Build component key - try multiple path patterns for different model types
+            # Special handling for "output" component - refers to the layer itself
+            if component == "output":
+                # "output" means the layer's output, which is stored under the layer name
+                path_patterns = [
+                    f"model.model.layers.{layer_idx}",   # mlx-lm models
+                    f"model.layers.{layer_idx}",         # models with .model wrapper
+                    f"layers.{layer_idx}",               # direct layers
+                ]
+            elif "." in component:
                 # Full path provided (e.g., "mlp.gate_proj")
-                activation_key = f"model.model.layers.{layer_idx}.{component}"
-                intervention_key = f"layers.{layer_idx}.{component}"
+                component_suffix = component
+                path_patterns = [
+                    f"model.model.layers.{layer_idx}.{component_suffix}",  # mlx-lm models
+                    f"model.layers.{layer_idx}.{component_suffix}",        # models with .model wrapper
+                    f"layers.{layer_idx}.{component_suffix}",              # direct layers
+                    f"model.layers.{layer_idx}",                           # layer without component (for custom models)
+                    f"layers.{layer_idx}",                                 # simplest path
+                ]
             else:
-                # Simple component name
-                activation_key = f"model.model.layers.{layer_idx}.{component}"
-                intervention_key = f"layers.{layer_idx}.{component}"
+                # Simple component name (e.g., "mlp", "self_attn")
+                component_suffix = component
+                path_patterns = [
+                    f"model.model.layers.{layer_idx}.{component_suffix}",  # mlx-lm models
+                    f"model.layers.{layer_idx}.{component_suffix}",        # models with .model wrapper
+                    f"layers.{layer_idx}.{component_suffix}",              # direct layers
+                    f"model.layers.{layer_idx}",                           # layer without component (for custom models)
+                    f"layers.{layer_idx}",                                 # simplest path
+                ]
 
-            # Get clean activation
+            # Get clean activation - find which path works
+            activation_key = None
             with self.trace(clean_text) as trace:
-                if activation_key not in trace.activations:
-                    print(f"\nWarning: {activation_key} not found, skipping")
+                for path in path_patterns:
+                    if path in trace.activations:
+                        activation_key = path
+                        clean_activation = trace.activations[path]
+                        break
+
+                if activation_key is None:
+                    print(f"\nWarning: No activation found for layer {layer_idx}.{component}, skipping")
+                    print(f"  Tried: {path_patterns[:3]}")
                     continue
-                clean_activation = trace.activations[activation_key]
 
             mx.eval(clean_activation)
+
+            # Derive intervention key from activation key
+            # Remove "model." or "model.model." prefix for interventions
+            if activation_key.startswith("model.model."):
+                intervention_key = activation_key[12:]  # Remove "model.model."
+            elif activation_key.startswith("model."):
+                intervention_key = activation_key[6:]   # Remove "model."
+            else:
+                intervention_key = activation_key
 
             # Patch into corrupted
             with self.trace(corrupted_text,
@@ -487,7 +560,11 @@ class AnalysisMixin:
 
             # Calculate recovery
             dist = distance(patched_output[0, -1], clean_output[0, -1])
-            recovery = (baseline - dist) / baseline * 100
+            if baseline > 1e-10:
+                recovery = (baseline - dist) / baseline * 100
+            else:
+                # Baseline is zero (clean == corrupted), can't compute recovery
+                recovery = 0.0
             results[layer_idx] = recovery
 
         print(f"\nCompleted patching {len(results)} layers")

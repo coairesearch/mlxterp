@@ -109,7 +109,7 @@ Provides indexed access to layers:
 
 ```python
 model.layers[3]  # Returns ModuleProxy
-model.layers[3].attn.output  # Returns OutputProxy
+model.layers[3].self_attn.output  # Returns OutputProxy (use self_attn for mlx-lm models)
 ```
 
 ### 3. Trace Context
@@ -120,11 +120,11 @@ Context manager for tracing execution.
 
 #### Lifecycle
 
-1. **`__enter__`**: Setup context, push to global stack
-2. **User code**: Access layers, set interventions
-3. **`__exit__`**: Execute model forward pass, capture activations, pop context
+1. **`__enter__`**: Setup context, push to global stack, execute forward pass
+2. **User code**: Access activations, call `.save()` on outputs
+3. **`__exit__`**: Copy saved values and activations, restore layers, pop context
 
-**Design Decision**: Execution happens in `__exit__` to allow setup during the context.
+**Design Decision**: Forward pass executes in `__enter__` so activations are immediately available inside the context. Saved values and activations are copied in `__exit__` so they remain available after the context.
 
 #### Global State Management
 

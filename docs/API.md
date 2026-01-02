@@ -647,8 +647,8 @@ Save the wrapped value to the current trace context and return the unwrapped val
 
 ```python
 with model.trace(input):
-    # Save returns the actual array
-    attn = model.layers[3].attn.output.save()
+    # Save returns the actual array (use self_attn for mlx-lm models)
+    attn = model.layers[3].self_attn.output.save()
     print(attn.shape)  # Can use immediately
 ```
 

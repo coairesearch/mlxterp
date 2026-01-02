@@ -49,9 +49,9 @@ model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
 
 # Use with text input
 with model.trace("The capital of France is") as trace:
-    # Access attention outputs
+    # Access attention outputs (use self_attn for mlx-lm models)
     for i in [3, 6, 9]:
-        attn = model.layers[i].attn.output.save()
+        attn = model.layers[i].self_attn.output.save()
         print(f"Layer {i} attention shape: {attn.shape}")
 
     # Get final output
@@ -695,11 +695,11 @@ You can patch any captured component:
 
 ```python
 with model.trace("Analyze this text") as trace:
-    # Collect all attention outputs
+    # Collect all attention outputs (use self_attn for mlx-lm models)
     attention_outputs = []
     for i in range(len(model.layers)):
-        if hasattr(model.layers[i], 'attn'):
-            attn = model.layers[i].attn.output.save()
+        if hasattr(model.layers[i], 'self_attn'):
+            attn = model.layers[i].self_attn.output.save()
             attention_outputs.append(attn)
 
 # Analyze attention patterns

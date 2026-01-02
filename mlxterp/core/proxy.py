@@ -2,7 +2,7 @@
 Proxy objects for transparent module wrapping and attribute access.
 
 This module provides the proxy system that enables the clean API:
-    model.layers[3].attn.output.save()
+    model.layers[3].self_attn.output.save()
 
 Key classes:
     - ModuleProxy: Wraps nn.Module to intercept __call__ and provide attribute access
