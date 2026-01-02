@@ -473,25 +473,27 @@ class TestTrainTunedLens:
         tuned_lens = train_tuned_lens(
             model,
             dataset,
-            num_steps=5,
+            num_steps=10,  # More steps to ensure weight changes
             max_seq_len=50,
             learning_rate=1.0,
             verbose=False,
         )
 
         # After training, at least one translator should differ from identity
-        all_identity = True
-        for i, translator in enumerate(tuned_lens.translators):
+        max_weight_diff = 0.0
+        max_bias_diff = 0.0
+        for translator in tuned_lens.translators:
             weight_diff = mx.abs(translator.weight - mx.eye(32)).max().item()
             bias_diff = mx.abs(translator.bias).max().item()
-            if weight_diff > 1e-5 or bias_diff > 1e-5:
-                all_identity = False
-                break
+            max_weight_diff = max(max_weight_diff, weight_diff)
+            max_bias_diff = max(max_bias_diff, bias_diff)
 
         # Training should have modified at least some weights
-        # (depends on gradient flow, but with enough steps should change)
-        # Note: This may not always pass if gradients are very small
-        # We mainly verify training runs without error
+        # With sufficient steps and learning rate, weights should change
+        assert max_weight_diff > 1e-6 or max_bias_diff > 1e-6, (
+            f"Training did not modify weights. Max weight diff: {max_weight_diff}, "
+            f"max bias diff: {max_bias_diff}"
+        )
 
     def test_train_with_save(self, model):
         """Test training with save_path saves the tuned lens."""

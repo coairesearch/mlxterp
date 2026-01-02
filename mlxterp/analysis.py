@@ -493,6 +493,7 @@ class AnalysisMixin:
             Belrose et al., "Eliciting Latent Predictions from Transformers with the Tuned Lens"
             https://arxiv.org/abs/2303.08112
         """
+        import warnings
         from .core.module_resolver import find_layer_key_pattern
 
         # Run trace to get all layer outputs
