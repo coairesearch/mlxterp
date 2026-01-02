@@ -420,10 +420,11 @@ prompts = [
 ]
 
 for prompt in prompts:
-    results = model.logit_lens(prompt, layers=[15], top_k=1)
+    # Use position=-1 to analyze only the last token
+    results = model.logit_lens(prompt, layers=[15], top_k=1, position=-1)
 
-    # Get top prediction from last layer
-    token_id, score, token_str = results[15][0]
+    # Get top prediction from layer 15 at the last position
+    token_id, score, token_str = results[15][0][0]
     print(f"'{prompt}' -> '{token_str}' ({score:.1f})")
 
 # Output:

@@ -81,7 +81,7 @@ model.trace(
   - `mx.array`: Token array, shape `(batch, seq_len)`
   - `List[int]`: Single sequence of token IDs
 
-- **interventions** (`Optional[Dict[str, Callable]]`): Dictionary mapping module names to intervention functions. Module names use dot notation (e.g., `"layers.3.attn"`).
+- **interventions** (`Optional[Dict[str, Callable]]`): Dictionary mapping module names to intervention functions. Module names use dot notation (e.g., `"layers.3.self_attn"` for mlx-lm models).
 
 **Returns:** `Trace` context manager
 
@@ -321,6 +321,7 @@ model.logit_lens(
     text: str,
     top_k: int = 1,
     layers: Optional[List[int]] = None,
+    position: Optional[int] = None,
     plot: bool = False,
     max_display_tokens: int = 15,
     figsize: tuple = (16, 10),
@@ -333,6 +334,7 @@ model.logit_lens(
 - **text** (`str`): Input text to analyze
 - **top_k** (`int`, default: `1`): Number of top predictions to return per position
 - **layers** (`Optional[List[int]]`, default: `None`): Specific layers to analyze (None = all)
+- **position** (`Optional[int]`, default: `None`): Specific position to analyze (None = all). Supports negative indexing (-1 = last position).
 - **plot** (`bool`, default: `False`): If True, display a heatmap visualization showing predictions
 - **max_display_tokens** (`int`, default: `15`): Maximum number of tokens to show in visualization (from the end)
 - **figsize** (`tuple`, default: `(16, 10)`): Figure size for plot (width, height)
@@ -341,6 +343,8 @@ model.logit_lens(
 **Returns:** Dict mapping `layer_idx` -> list of positions -> list of `(token_id, score, token_str)` tuples
 
 **Structure:** `{layer_idx: [[pos_0_predictions], [pos_1_predictions], ...]}`
+
+**Note:** This method requires mlx-lm model structure with `model.model.embed_tokens` and `model.model.norm`. Custom models without these attributes will raise an error.
 
 **Example:**
 
@@ -628,7 +632,8 @@ Get an activation by module name.
 with model.trace(input) as trace:
     pass  # Activations captured automatically
 
-attn_act = trace.get_activation("layers.3.attn")
+# Note: get_activation requires the full key (not normalized)
+attn_act = trace.get_activation("model.model.layers.3.self_attn")
 ```
 
 ---

@@ -277,11 +277,15 @@ class Trace:
         # Setup: Create and push context
         self.context = TraceContext()
         TraceContext.push(self.context)
+
+        # Execute: Run model forward pass immediately
+        # This allows users to access activations inside the with block
+        self.output = self.model_forward(self.inputs)
         return self
 
     def __exit__(self, *args):
-        # Execute: Run model forward pass
-        self.output = self.model_forward(self.inputs)
+        # Copy saved_values from context (for values saved inside the block)
+        self.saved_values = self.context.saved_values.copy()
 
         # Cleanup: Pop context
         TraceContext.pop()

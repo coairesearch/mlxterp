@@ -1,31 +1,27 @@
-# mlxterp docs review: bug report and recommendations
+# mlxterp docs/code rescan report
 
 ## Scope
-Re-verified previously reported issues against the current codebase and docs, including synthetic and real-model confirmation tests.
+Full rescan of `docs/` and verification of the current codebase after the listed fixes. Confirmation tests (synthetic + real-model) executed.
 
-## Status
-All previously reported issues are now fixed and verified.
+## Verified Fixes (code)
+- `Trace.saved_values` now copies in `__exit__`, while activations remain available inside the context. (`mlxterp/core/trace.py`)
+- List-of-int inputs are wrapped into a batch dimension. (`mlxterp/core/trace.py`)
+- `collect_activations` now filters by layer and normalizes keys to short form. (`mlxterp/core/cache.py`)
+- `get_token_predictions` handles batched hidden states. (`mlxterp/analysis.py`)
+- `logit_lens` supports `position`. (`mlxterp/analysis.py`)
+- `activation_patching` supports multiple path patterns, `component="output"`, and division-by-zero protection. (`mlxterp/analysis.py`)
 
-## Fixes Verified
-- `Trace.saved_values` now captures values saved inside the context by copying in `__exit__`, while activations remain available inside the context.
-- `List[int]` token inputs are wrapped into a batch dimension.
-- `collect_activations` respects layer filters and normalizes keys to short form.
-- `get_token_predictions` handles batched hidden states.
-- `logit_lens` supports `position` for targeted analysis.
-- `activation_patching` supports custom model paths, `component="output"`, and division-by-zero protection.
-- Docs updated: `.attn` -> `.self_attn`, trace timing in `architecture.md`, activation clearing in `JUPYTER_GUIDE.md`.
-
-## Test Results
-Ran:
+## Tests Run
 - `pytest tests/doubleReview/confirmationtests -q --no-cov`
+- Result: 16 collected, 16 passed
 
-Outcome:
-- 16 tests collected
-- 16 passed
+## Remaining Doc Mismatches (found in 100% rescan)
+- `docs/API.md:84` and `docs/API.md:631` still reference `.attn` and `layers.3.attn`. For mlx-lm Llama, this should be `self_attn`, and `Trace.get_activation(...)` requires the full key (e.g., `model.model.layers.3.self_attn`) because `Trace.get_activation` does not normalize keys.
+- `docs/architecture.md:274-286` includes a context-manager pattern snippet that executes the forward pass in `__exit__`. This contradicts the current implementation, which executes in `__enter__`.
+- `docs/examples.md:423-427` uses `results[15][0]` from `logit_lens(...)`; this indexes position 0, not the last position. It should use `results[15][-1][0]` or pass `position=-1`.
 
-Notes:
-- Real-model confirmations used `mlx-community/Llama-3.2-1B-Instruct-4bit`.
-- The confirmation tests that previously xfailed now pass with the fixes applied.
+## Residual Codebase Note (non-doc)
+- `logit_lens` still assumes `model.model.norm` and `model.model.embed_tokens`. Custom/non-mlx-lm models without these attributes will fail; if full model-agnostic behavior is intended, this is a remaining limitation.
 
-## Recommendations
-- Continue monitoring custom/non-mlx-lm model path coverage as new architectures are added.
+## Conclusion
+All previously reported bugs are fixed and verified by tests. A few doc mismatches remain (noted above) and should be updated to fully align with current behavior.

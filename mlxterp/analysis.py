@@ -189,6 +189,12 @@ class AnalysisMixin:
             Structure: {layer_idx: [[pos_0_predictions], [pos_1_predictions], ...]}
             If position is specified, each layer will have a single list of predictions.
 
+        Note:
+            This method requires mlx-lm model structure with:
+            - `model.model.embed_tokens`: Token embedding layer
+            - `model.model.norm`: Final layer normalization
+            Custom models without these attributes will raise an error.
+
         Example:
             >>> # Get top prediction per position per layer
             >>> results = model.logit_lens("The capital of France is")
