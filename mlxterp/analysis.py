@@ -476,7 +476,7 @@ class AnalysisMixin:
             >>> # Train or load tuned lens
             >>> tuned_lens = model.train_tuned_lens(texts, num_steps=250)
             >>> # Or load pre-trained:
-            >>> # tuned_lens = TunedLens.load("tuned_lens.safetensors")
+            >>> # tuned_lens = TunedLens.load("tuned_lens")  # Loads .npz and .json files
             >>>
             >>> # Apply tuned lens
             >>> results = model.tuned_logit_lens(
@@ -504,6 +504,12 @@ class AnalysisMixin:
 
         # Get final layer norm
         final_norm_layer = self._module_resolver.get_final_norm()
+        if final_norm_layer is None:
+            warnings.warn(
+                "Cannot find final layer norm for tuned lens. Tried paths:\n"
+                f"  {self._module_resolver.NORM_PATHS}\n"
+                "Proceeding without normalization. This may affect prediction quality."
+            )
 
         # Determine which layers to analyze
         if layers is None:

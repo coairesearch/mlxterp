@@ -12,6 +12,7 @@ Reference:
 
 import mlx.core as mx
 import mlx.nn as nn
+import mlx.utils
 from typing import Optional, List, Dict, Any, Callable
 from pathlib import Path
 import json
@@ -55,9 +56,9 @@ class TunedLens(nn.Module):
         >>> # Apply to a hidden state from layer 10
         >>> translated = tuned_lens(hidden_state, layer_idx=10)
         >>>
-        >>> # Save and load
-        >>> tuned_lens.save("tuned_lens_llama.safetensors")
-        >>> loaded = TunedLens.load("tuned_lens_llama.safetensors")
+        >>> # Save and load (creates .npz and .json files)
+        >>> tuned_lens.save("tuned_lens_llama")  # Creates tuned_lens_llama.npz and tuned_lens_llama.json
+        >>> loaded = TunedLens.load("tuned_lens_llama")
     """
 
     def __init__(self, num_layers: int, hidden_dim: int):
@@ -189,7 +190,6 @@ def train_tuned_lens(
     learning_rate: float = 1.0,
     momentum: float = 0.9,
     max_seq_len: int = 2048,
-    batch_size: int = 1,
     gradient_clip: float = 1.0,
     save_path: Optional[str] = None,
     verbose: bool = True,
@@ -207,6 +207,11 @@ def train_tuned_lens(
     - Learning rate 1.0 with linear decay over training steps
     - Gradient clipping with norm 1.0
 
+    Note:
+        Training processes one sequence chunk at a time (no batching).
+        This follows the paper's approach where each training step uses
+        a single sequence of up to max_seq_len tokens.
+
     Args:
         model: InterpretableModel instance with loaded model
         dataset: List of text strings for training
@@ -214,9 +219,8 @@ def train_tuned_lens(
         learning_rate: Initial learning rate (default: 1.0)
         momentum: Nesterov momentum coefficient (default: 0.9)
         max_seq_len: Maximum sequence length for training chunks (default: 2048)
-        batch_size: Batch size (default: 1)
         gradient_clip: Gradient clipping norm (default: 1.0)
-        save_path: Optional path to save trained weights
+        save_path: Optional path to save trained weights (creates .npz and .json files)
         verbose: If True, print training progress
         callback: Optional callback function called with (step, loss) after each step
 
@@ -229,7 +233,7 @@ def train_tuned_lens(
         >>> tuned_lens = train_tuned_lens(
         ...     model, texts,
         ...     num_steps=250,
-        ...     save_path="tuned_lens.safetensors"
+        ...     save_path="tuned_lens"  # Creates tuned_lens.npz and tuned_lens.json
         ... )
     """
     import mlx.optimizers as optim
@@ -402,10 +406,11 @@ def train_tuned_lens(
         loss, grads = mx.value_and_grad(loss_fn)(tuned_lens.parameters())
 
         # Gradient clipping
-        grad_norm = mx.sqrt(sum(mx.sum(g * g) for g in mx.utils.tree_flatten(grads)[0]))
+        flat_grads = mlx.utils.tree_flatten(grads)
+        grad_norm = mx.sqrt(sum(mx.sum(g * g) for _, g in flat_grads))
         if grad_norm > gradient_clip:
             scale = gradient_clip / (grad_norm + 1e-6)
-            grads = mx.utils.tree_map(lambda g: g * scale, grads)
+            grads = mlx.utils.tree_map(lambda g: g * scale, grads)
 
         # Linear learning rate decay
         current_lr = learning_rate * (1 - step / num_steps)
