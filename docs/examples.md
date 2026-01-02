@@ -859,6 +859,96 @@ for chunk in chunks(large_dataset, size=100):
 final_results = mx.concatenate(results, axis=0)
 ```
 
+## Custom Model Support
+
+mlxterp works with any MLX model architecture through automatic module discovery.
+
+### Default Support (No Configuration)
+
+Models like mlx-lm (Llama, Mistral, Qwen) work out of the box:
+
+```python
+from mlxterp import InterpretableModel
+from mlx_lm import load
+
+# Auto-detection works for standard models
+base_model, tokenizer = load("mlx-community/Llama-3.2-1B-Instruct-4bit")
+model = InterpretableModel(base_model, tokenizer=tokenizer)
+
+# logit_lens and get_token_predictions work automatically
+results = model.logit_lens("Hello world")
+```
+
+### GPT-2 Style Models
+
+Models with different attribute names (wte, ln_f, lm_head) are also auto-detected:
+
+```python
+# GPT-2 style models work automatically
+model = InterpretableModel(gpt2_model, tokenizer=tokenizer, layer_attr="h")
+results = model.logit_lens("Hello world")
+```
+
+### Custom Model Paths
+
+For models with non-standard attribute names, use constructor overrides:
+
+```python
+# Custom model with unusual attribute names
+model = InterpretableModel(
+    custom_model,
+    tokenizer=tokenizer,
+    embedding_path="my_custom_embeddings",  # Override embedding location
+    norm_path="my_final_layer_norm",        # Override final norm location
+    lm_head_path="my_output_projection"     # Override lm_head location
+)
+
+# Now logit_lens and get_token_predictions work
+results = model.logit_lens("Hello world")
+```
+
+### Models Without Final Norm
+
+Some models don't have a final layer normalization:
+
+```python
+# Skip normalization for models without it
+results = model.logit_lens("Hello world", skip_norm=True)
+
+# Or provide a custom norm at call time
+results = model.logit_lens("Hello world", final_norm=my_custom_norm)
+```
+
+### Method-Level Overrides
+
+Override components at call time without changing the model configuration:
+
+```python
+# Override lm_head for a specific call
+predictions = model.get_token_predictions(
+    hidden_state,
+    top_k=5,
+    lm_head=custom_lm_head  # Use this layer for this call
+)
+
+# Override embedding for weight-tied projection
+predictions = model.get_token_predictions(
+    hidden_state,
+    top_k=5,
+    embedding_layer=custom_embedding  # Use this for weight-tied projection
+)
+```
+
+### Fallback Chains
+
+mlxterp tries multiple paths to find components:
+
+| Component | Tried Paths |
+|-----------|------------|
+| Embedding | `model.embed_tokens`, `model.model.embed_tokens`, `embed_tokens`, `tok_embeddings`, `wte` |
+| Final Norm | `model.norm`, `model.model.norm`, `norm`, `ln_f`, `model.ln_f` |
+| LM Head | `lm_head`, `model.lm_head`, `output` (falls back to embedding if not found) |
+
 ## See Also
 
 - [API Reference](API.md) - Complete API documentation

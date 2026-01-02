@@ -12,6 +12,11 @@ from .intervention import (
     InterventionComposer,
 )
 from .cache import ActivationCache, collect_activations
+from .module_resolver import (
+    ModuleResolver,
+    normalize_layer_key,
+    find_layer_key_pattern,
+)
 
 __all__ = [
     # Proxy
@@ -32,4 +37,8 @@ __all__ = [
     # Cache
     "ActivationCache",
     "collect_activations",
+    # Module Resolution
+    "ModuleResolver",
+    "normalize_layer_key",
+    "find_layer_key_pattern",
 ]

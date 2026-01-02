@@ -29,7 +29,9 @@ class AnalysisMixin:
         self,
         hidden_state: mx.array,
         top_k: int = 10,
-        return_scores: bool = False
+        return_scores: bool = False,
+        embedding_layer: Optional[Any] = None,
+        lm_head: Optional[Any] = None,
     ) -> Union[List[int], List[tuple], List[List]]:
         """
         Decode hidden states to token predictions using the model's output projection.
@@ -41,6 +43,10 @@ class AnalysisMixin:
             hidden_state: Hidden state tensor, shape (hidden_dim,) or (batch, hidden_dim)
             top_k: Number of top predictions to return
             return_scores: If True, return (token_id, score) tuples instead of just token_ids
+            embedding_layer: Override embedding layer for weight-tied projection.
+                            If provided, uses this layer's weights for output projection.
+            lm_head: Override lm_head layer. If provided, uses this layer directly.
+                    Takes precedence over embedding_layer.
 
         Returns:
             For 1D input: List of token IDs or (token_id, score) tuples
@@ -62,6 +68,11 @@ class AnalysisMixin:
             >>> hidden_batch = layer_6[:, -1, :]  # (batch, hidden_dim)
             >>> batch_preds = model.get_token_predictions(hidden_batch, top_k=5)
             >>> # batch_preds is a list of lists, one per batch element
+            >>>
+            >>> # Custom model with non-standard paths
+            >>> predictions = model.get_token_predictions(
+            >>>     hidden, top_k=5, embedding_layer=model.model.my_embed
+            >>> )
         """
         # Handle batched input
         is_batched = hidden_state.ndim == 2
@@ -70,64 +81,37 @@ class AnalysisMixin:
             batch_results = []
             for i in range(hidden_state.shape[0]):
                 single_result = self.get_token_predictions(
-                    hidden_state[i], top_k=top_k, return_scores=return_scores
+                    hidden_state[i], top_k=top_k, return_scores=return_scores,
+                    embedding_layer=embedding_layer, lm_head=lm_head
                 )
                 batch_results.append(single_result)
             return batch_results
-        # Get embedding weights for output projection
-        # For weight-tied models, embedding.T is used as lm_head
-        if hasattr(self.model, 'lm_head'):
-            # Direct lm_head (not weight-tied)
-            logits = self.model.lm_head(hidden_state)
-        elif hasattr(self.model, 'model') and hasattr(self.model.model, 'embed_tokens'):
-            # Weight-tied: use embedding weights transposed
-            embed_layer = self.model.model.embed_tokens
 
-            # For quantized embeddings, we need to use the layer as a function
-            # to properly dequantize. Create a dummy input to get output shape.
-            # Then we can use it as the lm_head by transposing the operation.
-
-            # The simplest approach: treat the embedding layer as the lm_head
-            # by using it in "reverse" mode through matrix multiplication
-            # But for quantized layers, we need the dequantized weights
-
-            # Check if it's a quantized embedding by looking for quantization attributes
-            is_quantized = hasattr(embed_layer, 'scales') or hasattr(embed_layer, 'biases') or \
-                          (hasattr(embed_layer, 'weight') and embed_layer.weight.shape[0] != self.vocab_size)
-
-            if is_quantized:
-                # Quantized embedding - we need to use a different approach
-                # For now, create a workaround by computing similarities
-                # This is less efficient but works with quantized embeddings
-
-                # Get vocab size
-                vocab_size = self.vocab_size if self.vocab_size else 128256
-
-                # Batch process to avoid OOM
-                batch_size = 1024
-                all_logits = []
-
-                for start_idx in range(0, vocab_size, batch_size):
-                    end_idx = min(start_idx + batch_size, vocab_size)
-                    batch_indices = mx.arange(start_idx, end_idx)
-
-                    # Get embeddings for this batch
-                    batch_embeds = embed_layer(batch_indices)  # Shape: (batch_size, hidden_dim)
-
-                    # Compute similarities
-                    batch_logits = batch_embeds @ hidden_state  # Shape: (batch_size,)
-                    all_logits.append(batch_logits)
-
-                logits = mx.concatenate(all_logits, axis=0)
-            else:
-                # Standard embedding with weight attribute
-                embed_weights = embed_layer.weight  # Shape: (vocab_size, hidden_dim)
-                logits = hidden_state @ embed_weights.T
+        # Resolve output projection using the module resolver
+        # Priority: lm_head override > embedding_layer override > resolver
+        if lm_head is not None:
+            # Direct lm_head override
+            logits = lm_head(hidden_state)
+        elif embedding_layer is not None:
+            # Embedding layer override - use weight-tied projection
+            logits = self._compute_weight_tied_logits(hidden_state, embedding_layer)
         else:
-            raise AttributeError(
-                "Cannot find output projection layer. Model must have either "
-                "'lm_head' or weight-tied embeddings ('model.embed_tokens')"
-            )
+            # Use module resolver
+            proj_module, proj_path, is_weight_tied = self._module_resolver.get_output_projection()
+
+            if proj_module is None:
+                raise AttributeError(
+                    "Cannot find output projection layer. Model must have either "
+                    "'lm_head' or weight-tied embeddings. Tried paths:\n"
+                    f"  lm_head: {self._module_resolver.LM_HEAD_PATHS}\n"
+                    f"  embedding: {self._module_resolver.EMBEDDING_PATHS}\n"
+                    "Use embedding_path or lm_head_path constructor args to specify custom paths."
+                )
+
+            if is_weight_tied:
+                logits = self._compute_weight_tied_logits(hidden_state, proj_module)
+            else:
+                logits = proj_module(hidden_state)
 
         # Get top-k predictions
         top_k_indices = mx.argpartition(-logits, kth=min(top_k, logits.shape[-1] - 1))[:top_k]
@@ -153,6 +137,53 @@ class AnalysisMixin:
             sorted_pairs = sorted(zip(token_ids, scores), key=lambda x: x[1], reverse=True)
             return [token_id for token_id, _ in sorted_pairs]
 
+    def _compute_weight_tied_logits(
+        self,
+        hidden_state: mx.array,
+        embed_layer: Any,
+    ) -> mx.array:
+        """
+        Compute logits using weight-tied embedding layer.
+
+        For weight-tied models, the embedding weights are used (transposed) as
+        the output projection. This handles both standard and quantized embeddings.
+
+        Args:
+            hidden_state: Hidden state tensor, shape (hidden_dim,)
+            embed_layer: Embedding layer to use for projection
+
+        Returns:
+            Logits tensor, shape (vocab_size,)
+        """
+        # Check if it's a quantized embedding by looking for quantization attributes
+        is_quantized = hasattr(embed_layer, 'scales') or hasattr(embed_layer, 'biases') or \
+                      (hasattr(embed_layer, 'weight') and embed_layer.weight.shape[0] != self.vocab_size)
+
+        if is_quantized:
+            # Quantized embedding - compute similarities in batches
+            vocab_size = self.vocab_size if self.vocab_size else 128256
+
+            # Batch process to avoid OOM
+            batch_size = 1024
+            all_logits = []
+
+            for start_idx in range(0, vocab_size, batch_size):
+                end_idx = min(start_idx + batch_size, vocab_size)
+                batch_indices = mx.arange(start_idx, end_idx)
+
+                # Get embeddings for this batch
+                batch_embeds = embed_layer(batch_indices)  # Shape: (batch_size, hidden_dim)
+
+                # Compute similarities
+                batch_logits = batch_embeds @ hidden_state  # Shape: (batch_size,)
+                all_logits.append(batch_logits)
+
+            return mx.concatenate(all_logits, axis=0)
+        else:
+            # Standard embedding with weight attribute
+            embed_weights = embed_layer.weight  # Shape: (vocab_size, hidden_dim)
+            return hidden_state @ embed_weights.T
+
     def logit_lens(
         self,
         text: str,
@@ -163,7 +194,9 @@ class AnalysisMixin:
         max_display_tokens: int = 15,
         figsize: tuple = (16, 10),
         cmap: str = 'viridis',
-        font_family: Optional[str] = None
+        font_family: Optional[str] = None,
+        final_norm: Optional[Any] = None,
+        skip_norm: bool = False,
     ) -> Dict[int, List[List[tuple]]]:
         """
         Apply logit lens to see what each layer predicts at each token position.
@@ -183,17 +216,15 @@ class AnalysisMixin:
             figsize: Figure size for plot (width, height)
             cmap: Colormap for heatmap (default: 'viridis')
             font_family: Font to use for plot (for CJK support use 'Arial Unicode MS' or None for auto-detect)
+            final_norm: Override final layer normalization module. If provided,
+                       uses this module instead of auto-detected norm layer.
+            skip_norm: If True, skip final layer normalization entirely.
+                      Useful for models without a final norm layer.
 
         Returns:
             Dict mapping layer_idx -> list of positions -> list of (token_id, score, token_str) tuples
             Structure: {layer_idx: [[pos_0_predictions], [pos_1_predictions], ...]}
             If position is specified, each layer will have a single list of predictions.
-
-        Note:
-            This method requires mlx-lm model structure with:
-            - `model.model.embed_tokens`: Token embedding layer
-            - `model.model.norm`: Final layer normalization
-            Custom models without these attributes will raise an error.
 
         Example:
             >>> # Get top prediction per position per layer
@@ -209,7 +240,16 @@ class AnalysisMixin:
             >>>
             >>> # Visualize with heatmap
             >>> results = model.logit_lens("The Eiffel Tower is located in the city of", plot=True)
+            >>>
+            >>> # Model without final norm
+            >>> results = model.logit_lens("Hello", skip_norm=True)
+            >>>
+            >>> # Custom final norm
+            >>> results = model.logit_lens("Hello", final_norm=model.model.my_norm)
         """
+        import warnings
+        from .core.module_resolver import find_layer_key_pattern
+
         # Run trace to get all layer outputs
         with self.trace(text) as trace:
             pass
@@ -217,29 +257,38 @@ class AnalysisMixin:
         # Get tokens for displaying input
         tokens = self.encode(text)
 
-        # Get final layer norm for projection
-        if "model.model.norm" in trace.activations:
-            final_norm_layer = self.model.model.norm
+        # Resolve final layer norm
+        # Priority: skip_norm > final_norm override > resolver
+        if skip_norm:
+            final_norm_layer = None
+        elif final_norm is not None:
+            final_norm_layer = final_norm
         else:
-            raise ValueError("Cannot find final layer norm (model.model.norm)")
+            final_norm_layer = self._module_resolver.get_final_norm()
+            if final_norm_layer is None:
+                warnings.warn(
+                    "Cannot find final layer norm. Tried paths:\n"
+                    f"  {self._module_resolver.NORM_PATHS}\n"
+                    "Proceeding without normalization. Use final_norm parameter "
+                    "to specify a custom norm layer, or skip_norm=True to suppress this warning."
+                )
 
         # Determine which layers to analyze
         if layers is None:
             layers = list(range(len(self.layers)))
 
-        # Get embedding layer for projection
-        embed_layer = self.model.model.embed_tokens
-        vocab_size = self.vocab_size
-
         results = {}
 
         for layer_idx in layers:
-            # Get layer output
-            layer_key = f"model.model.layers.{layer_idx}"
-            if layer_key not in trace.activations:
+            # Find the correct layer key pattern for this model
+            layer_key = find_layer_key_pattern(trace.activations, layer_idx)
+            if layer_key is None:
                 continue
 
             layer_output = trace.activations[layer_key]  # Shape: (batch, seq_len, hidden_dim)
+            if layer_output.ndim != 3:
+                # Skip if not proper shape (might be a different type of activation)
+                continue
             batch_size, seq_len, hidden_dim = layer_output.shape
 
             layer_predictions = []
@@ -256,8 +305,11 @@ class AnalysisMixin:
             for pos in positions_to_analyze:
                 hidden = layer_output[0, pos, :]  # Shape: (hidden_dim,)
 
-                # Apply final layer norm
-                normalized = final_norm_layer(hidden)
+                # Apply final layer norm if available
+                if final_norm_layer is not None:
+                    normalized = final_norm_layer(hidden)
+                else:
+                    normalized = hidden
 
                 # Get token predictions
                 predictions = self.get_token_predictions(normalized, top_k=top_k, return_scores=True)
