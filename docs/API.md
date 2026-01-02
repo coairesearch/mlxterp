@@ -24,7 +24,10 @@ Main entry point for wrapping MLX models to add interpretability features.
 InterpretableModel(
     model: Union[nn.Module, str],
     tokenizer: Optional[Any] = None,
-    layer_attr: str = "layers"
+    layer_attr: str = "layers",
+    embedding_path: Optional[str] = None,
+    norm_path: Optional[str] = None,
+    lm_head_path: Optional[str] = None
 )
 ```
 
@@ -41,6 +44,12 @@ InterpretableModel(
   - `"h"` (GPT-2)
   - `"transformer.h"` (some GPT variants)
 
+- **embedding_path** (`Optional[str]`, default: `None`): Override path for the token embedding layer. Used for weight-tied output projection in `get_token_predictions`. Auto-detected if not specified. Tried paths: `model.embed_tokens`, `model.model.embed_tokens`, `embed_tokens`, `tok_embeddings`, `wte`.
+
+- **norm_path** (`Optional[str]`, default: `None`): Override path for the final layer normalization. Used in `logit_lens` for projecting intermediate activations. Auto-detected if not specified. Tried paths: `model.norm`, `model.model.norm`, `norm`, `ln_f`, `model.ln_f`.
+
+- **lm_head_path** (`Optional[str]`, default: `None`): Override path for the output projection layer. If not found, falls back to weight-tied embedding. Tried paths: `lm_head`, `model.lm_head`, `model.model.lm_head`, `output`, `head`.
+
 **Returns:** `InterpretableModel` instance
 
 **Example:**
@@ -48,7 +57,7 @@ InterpretableModel(
 ```python
 from mlxterp import InterpretableModel
 
-# Load from model name
+# Load from model name (auto-detection works)
 model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
 
 # Wrap existing model
@@ -58,6 +67,15 @@ model = InterpretableModel(base_model, tokenizer=my_tokenizer)
 
 # Custom layer attribute
 model = InterpretableModel(gpt2_model, layer_attr="h")
+
+# Custom model with non-standard attribute names
+model = InterpretableModel(
+    custom_model,
+    tokenizer=my_tokenizer,
+    embedding_path="my_custom_embeddings",
+    norm_path="my_final_norm",
+    lm_head_path="my_output_projection"
+)
 ```
 
 ---
@@ -81,7 +99,7 @@ model.trace(
   - `mx.array`: Token array, shape `(batch, seq_len)`
   - `List[int]`: Single sequence of token IDs
 
-- **interventions** (`Optional[Dict[str, Callable]]`): Dictionary mapping module names to intervention functions. Module names use dot notation (e.g., `"layers.3.attn"`).
+- **interventions** (`Optional[Dict[str, Callable]]`): Dictionary mapping module names to intervention functions. Module names use dot notation (e.g., `"layers.3.self_attn"` for mlx-lm models).
 
 **Returns:** `Trace` context manager
 
@@ -263,7 +281,9 @@ Decode hidden states to token predictions using the model's output projection.
 model.get_token_predictions(
     hidden_state: mx.array,
     top_k: int = 10,
-    return_scores: bool = False
+    return_scores: bool = False,
+    embedding_layer: Optional[Any] = None,
+    lm_head: Optional[Any] = None
 ) -> Union[List[int], List[tuple]]
 ```
 
@@ -272,6 +292,8 @@ model.get_token_predictions(
 - **hidden_state** (`mx.array`): Hidden state tensor, shape `(hidden_dim,)` or `(batch, hidden_dim)`
 - **top_k** (`int`, default: `10`): Number of top predictions to return
 - **return_scores** (`bool`, default: `False`): If True, return `(token_id, score)` tuples
+- **embedding_layer** (`Optional[Any]`, default: `None`): Override embedding layer for weight-tied projection. If provided, uses this layer's weights for output projection.
+- **lm_head** (`Optional[Any]`, default: `None`): Override lm_head layer. If provided, uses this layer directly. Takes precedence over `embedding_layer`.
 
 **Returns:** List of token IDs or `(token_id, score)` tuples
 
@@ -301,11 +323,19 @@ predictions_with_scores = model.get_token_predictions(
 for token_id, score in predictions_with_scores:
     token_str = model.token_to_str(token_id)
     print(f"{token_str}: {score:.2f}")
+
+# Custom model with override at call time
+predictions = model.get_token_predictions(
+    hidden,
+    top_k=5,
+    lm_head=custom_model.my_lm_head
+)
 ```
 
 **Notes:**
 - Automatically handles weight-tied models (uses embedding weights transposed)
 - Works with quantized embeddings (dequantizes automatically)
+- Model-agnostic: auto-detects embedding/lm_head paths for various architectures
 - Useful for analyzing what any layer "thinks" at a specific position
 
 ---
@@ -321,10 +351,14 @@ model.logit_lens(
     text: str,
     top_k: int = 1,
     layers: Optional[List[int]] = None,
+    position: Optional[int] = None,
     plot: bool = False,
     max_display_tokens: int = 15,
     figsize: tuple = (16, 10),
-    cmap: str = 'viridis'
+    cmap: str = 'viridis',
+    font_family: Optional[str] = None,
+    final_norm: Optional[Any] = None,
+    skip_norm: bool = False
 ) -> Dict[int, List[List[tuple]]]
 ```
 
@@ -333,14 +367,23 @@ model.logit_lens(
 - **text** (`str`): Input text to analyze
 - **top_k** (`int`, default: `1`): Number of top predictions to return per position
 - **layers** (`Optional[List[int]]`, default: `None`): Specific layers to analyze (None = all)
+- **position** (`Optional[int]`, default: `None`): Specific position to analyze (None = all). Supports negative indexing (-1 = last position).
 - **plot** (`bool`, default: `False`): If True, display a heatmap visualization showing predictions
 - **max_display_tokens** (`int`, default: `15`): Maximum number of tokens to show in visualization (from the end)
 - **figsize** (`tuple`, default: `(16, 10)`): Figure size for plot (width, height)
 - **cmap** (`str`, default: `'viridis'`): Colormap for heatmap
+- **font_family** (`Optional[str]`, default: `None`): Font for plot (use 'Arial Unicode MS' for CJK support)
+- **final_norm** (`Optional[Any]`, default: `None`): Override final layer normalization module. If provided, uses this module instead of auto-detected norm layer.
+- **skip_norm** (`bool`, default: `False`): If True, skip final layer normalization entirely. Useful for models without a final norm layer.
 
 **Returns:** Dict mapping `layer_idx` -> list of positions -> list of `(token_id, score, token_str)` tuples
 
 **Structure:** `{layer_idx: [[pos_0_predictions], [pos_1_predictions], ...]}`
+
+**Model Compatibility:** This method automatically detects model structure and works with:
+- mlx-lm models (`model.model.norm`, `model.model.embed_tokens`)
+- GPT-2 style models (`ln_f`, `wte`)
+- Custom models (use `norm_path` constructor arg or `final_norm`/`skip_norm` parameters)
 
 **Example:**
 
@@ -390,6 +433,15 @@ results = model.logit_lens(
 #   - Y-axis: Model layers
 #   - Cell values: Top predicted token at each (layer, position)
 #   - Colors: Different predictions shown with different colors
+
+# Model without final normalization
+results = model.logit_lens("Hello world", skip_norm=True)
+
+# Custom final norm at call time
+results = model.logit_lens(
+    "Hello world",
+    final_norm=custom_model.my_final_norm
+)
 ```
 
 **Note:** Plotting requires matplotlib: `pip install matplotlib`
@@ -628,7 +680,8 @@ Get an activation by module name.
 with model.trace(input) as trace:
     pass  # Activations captured automatically
 
-attn_act = trace.get_activation("layers.3.attn")
+# Note: get_activation requires the full key (not normalized)
+attn_act = trace.get_activation("model.model.layers.3.self_attn")
 ```
 
 ---
@@ -647,8 +700,8 @@ Save the wrapped value to the current trace context and return the unwrapped val
 
 ```python
 with model.trace(input):
-    # Save returns the actual array
-    attn = model.layers[3].attn.output.save()
+    # Save returns the actual array (use self_attn for mlx-lm models)
+    attn = model.layers[3].self_attn.output.save()
     print(attn.shape)  # Can use immediately
 ```
 
@@ -1103,6 +1156,112 @@ if "layers.3" in cache:
 # List all
 for name in cache.keys():
     print(name)
+```
+
+---
+
+### Class: `ModuleResolver`
+
+Generic module resolution for different MLX model architectures. Automatically finds embedding, final norm, and lm_head modules using fallback chains.
+
+**Constructor:**
+
+```python
+ModuleResolver(
+    model: nn.Module,
+    embedding_path: Optional[str] = None,
+    norm_path: Optional[str] = None,
+    lm_head_path: Optional[str] = None
+)
+```
+
+**Methods:**
+
+- `get_embedding_layer()`: Get token embedding layer
+- `get_final_norm()`: Get final layer normalization
+- `get_lm_head()`: Get output projection layer
+- `get_output_projection()`: Get output projection with weight-tied detection. Returns `(module, path, is_weight_tied)`
+- `clear_cache()`: Clear resolved module cache (call after modifying model structure)
+
+**Fallback Chains:**
+
+| Component | Resolution Order |
+|-----------|-----------------|
+| Embedding | `model.embed_tokens`, `model.model.embed_tokens`, `embed_tokens`, `tok_embeddings`, `wte` |
+| Final Norm | `model.norm`, `model.model.norm`, `norm`, `ln_f`, `model.ln_f` |
+| LM Head | `lm_head`, `model.lm_head`, `model.model.lm_head`, `output`, `head` (falls back to embedding if not found) |
+
+**Example:**
+
+```python
+from mlxterp.core import ModuleResolver
+
+# Create resolver for a model
+resolver = ModuleResolver(model)
+
+# Get components
+embedding = resolver.get_embedding_layer()
+norm = resolver.get_final_norm()
+proj, path, is_tied = resolver.get_output_projection()
+
+if is_tied:
+    print("Model uses weight-tied embedding for output")
+
+# With custom paths
+resolver = ModuleResolver(
+    model,
+    embedding_path="my_embed",
+    norm_path="my_norm"
+)
+
+# Cache invalidation (after modifying model structure)
+resolver.clear_cache()  # Force re-resolution on next access
+```
+
+---
+
+### Function: `normalize_layer_key`
+
+Normalize activation keys by removing model prefixes.
+
+```python
+normalize_layer_key(key: str) -> str
+```
+
+**Example:**
+
+```python
+from mlxterp.core import normalize_layer_key
+
+normalize_layer_key("model.model.layers.0")  # "layers.0"
+normalize_layer_key("model.layers.5.self_attn")  # "layers.5.self_attn"
+```
+
+---
+
+### Function: `find_layer_key_pattern`
+
+Find the correct activation key pattern for a layer index.
+
+```python
+find_layer_key_pattern(
+    activations: dict,
+    layer_idx: int,
+    component: Optional[str] = None
+) -> Optional[str]
+```
+
+**Example:**
+
+```python
+from mlxterp.core import find_layer_key_pattern
+
+# Find layer 5's key in activations dict
+key = find_layer_key_pattern(trace.activations, 5)
+# Returns "model.model.layers.5" or "layers.5" etc.
+
+# Find specific component
+key = find_layer_key_pattern(trace.activations, 5, "self_attn")
 ```
 
 ---

@@ -23,8 +23,8 @@ model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
 
 # Trace execution and capture activations
 with model.trace("The capital of France is"):
-    # Direct attribute access to layers
-    attn_3 = model.layers[3].attn.output.save()
+    # Direct attribute access to layers (use self_attn for mlx-lm models)
+    attn_3 = model.layers[3].self_attn.output.save()
     mlp_8 = model.layers[8].mlp.output.save()
     logits = model.output.save()
 

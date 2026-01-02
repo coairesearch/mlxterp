@@ -269,11 +269,12 @@ for i, act in enumerate(layer_activations):
 
 2. **Use specific module names**: Target interventions precisely (e.g., `model.model.layers.5.self_attn.q_proj` instead of just `layers.5`)
 
-3. **Memory management**: Traces store all activations - clear them when done:
+3. **Memory management**: Traces store all activations which remain available after the context:
    ```python
    with model.trace(input) as trace:
        act = trace.activations['some.module']
-   # trace.activations is cleared after exiting context
+   # trace.activations remains available after exiting context
+   # Delete trace when done to free memory: del trace
    ```
 
 4. **Model downloads**: First run downloads ~1-2GB model, cached at `~/.cache/huggingface/`

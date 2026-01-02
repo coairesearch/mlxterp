@@ -19,9 +19,9 @@ class TestSAEConfig:
     def test_default_config(self):
         """Test that default config initializes correctly."""
         config = SAEConfig()
-        assert config.expansion_factor == 16
+        assert config.expansion_factor == 32  # SAELens-validated default
         assert config.k == 100
-        assert config.learning_rate == 1e-4
+        assert config.learning_rate == 3e-4  # SAELens-validated default
         assert config.batch_size == 256
         assert config.normalize_input is True
 
@@ -222,7 +222,7 @@ class TestSAEMetrics:
         stats = sae.get_activation_stats(features)
 
         assert "l0" in stats  # Average number of active features
-        assert "l1" in stats  # L1 norm
+        assert "l1_magnitude" in stats  # L1 magnitude (average absolute value)
         assert "dead_features" in stats  # Number of dead features
         assert "dead_fraction" in stats  # Fraction of dead features
 

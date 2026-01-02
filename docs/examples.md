@@ -49,9 +49,9 @@ model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
 
 # Use with text input
 with model.trace("The capital of France is") as trace:
-    # Access attention outputs
+    # Access attention outputs (use self_attn for mlx-lm models)
     for i in [3, 6, 9]:
-        attn = model.layers[i].attn.output.save()
+        attn = model.layers[i].self_attn.output.save()
         print(f"Layer {i} attention shape: {attn.shape}")
 
     # Get final output
@@ -420,10 +420,11 @@ prompts = [
 ]
 
 for prompt in prompts:
-    results = model.logit_lens(prompt, layers=[15], top_k=1)
+    # Use position=-1 to analyze only the last token
+    results = model.logit_lens(prompt, layers=[15], top_k=1, position=-1)
 
-    # Get top prediction from last layer
-    token_id, score, token_str = results[15][0]
+    # Get top prediction from layer 15 at the last position
+    token_id, score, token_str = results[15][0][0]
     print(f"'{prompt}' -> '{token_str}' ({score:.1f})")
 
 # Output:
@@ -695,11 +696,11 @@ You can patch any captured component:
 
 ```python
 with model.trace("Analyze this text") as trace:
-    # Collect all attention outputs
+    # Collect all attention outputs (use self_attn for mlx-lm models)
     attention_outputs = []
     for i in range(len(model.layers)):
-        if hasattr(model.layers[i], 'attn'):
-            attn = model.layers[i].attn.output.save()
+        if hasattr(model.layers[i], 'self_attn'):
+            attn = model.layers[i].self_attn.output.save()
             attention_outputs.append(attn)
 
 # Analyze attention patterns
@@ -857,6 +858,96 @@ for chunk in chunks(large_dataset, size=100):
 # Concatenate at the end
 final_results = mx.concatenate(results, axis=0)
 ```
+
+## Custom Model Support
+
+mlxterp works with any MLX model architecture through automatic module discovery.
+
+### Default Support (No Configuration)
+
+Models like mlx-lm (Llama, Mistral, Qwen) work out of the box:
+
+```python
+from mlxterp import InterpretableModel
+from mlx_lm import load
+
+# Auto-detection works for standard models
+base_model, tokenizer = load("mlx-community/Llama-3.2-1B-Instruct-4bit")
+model = InterpretableModel(base_model, tokenizer=tokenizer)
+
+# logit_lens and get_token_predictions work automatically
+results = model.logit_lens("Hello world")
+```
+
+### GPT-2 Style Models
+
+Models with different attribute names (wte, ln_f, lm_head) are also auto-detected:
+
+```python
+# GPT-2 style models work automatically
+model = InterpretableModel(gpt2_model, tokenizer=tokenizer, layer_attr="h")
+results = model.logit_lens("Hello world")
+```
+
+### Custom Model Paths
+
+For models with non-standard attribute names, use constructor overrides:
+
+```python
+# Custom model with unusual attribute names
+model = InterpretableModel(
+    custom_model,
+    tokenizer=tokenizer,
+    embedding_path="my_custom_embeddings",  # Override embedding location
+    norm_path="my_final_layer_norm",        # Override final norm location
+    lm_head_path="my_output_projection"     # Override lm_head location
+)
+
+# Now logit_lens and get_token_predictions work
+results = model.logit_lens("Hello world")
+```
+
+### Models Without Final Norm
+
+Some models don't have a final layer normalization:
+
+```python
+# Skip normalization for models without it
+results = model.logit_lens("Hello world", skip_norm=True)
+
+# Or provide a custom norm at call time
+results = model.logit_lens("Hello world", final_norm=my_custom_norm)
+```
+
+### Method-Level Overrides
+
+Override components at call time without changing the model configuration:
+
+```python
+# Override lm_head for a specific call
+predictions = model.get_token_predictions(
+    hidden_state,
+    top_k=5,
+    lm_head=custom_lm_head  # Use this layer for this call
+)
+
+# Override embedding for weight-tied projection
+predictions = model.get_token_predictions(
+    hidden_state,
+    top_k=5,
+    embedding_layer=custom_embedding  # Use this for weight-tied projection
+)
+```
+
+### Fallback Chains
+
+mlxterp tries multiple paths to find components:
+
+| Component | Tried Paths |
+|-----------|------------|
+| Embedding | `model.embed_tokens`, `model.model.embed_tokens`, `embed_tokens`, `tok_embeddings`, `wte` |
+| Final Norm | `model.norm`, `model.model.norm`, `norm`, `ln_f`, `model.ln_f` |
+| LM Head | `lm_head`, `model.lm_head`, `output` (falls back to embedding if not found) |
 
 ## See Also
 

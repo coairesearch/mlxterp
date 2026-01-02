@@ -55,7 +55,7 @@ if sae.is_compatible(model, layer=10, component="mlp"):
 with model.trace("Test input") as trace:
     pass
 
-activation = trace.activations["model.layers.10.mlp"]
+activation = trace.activations["model.model.layers.10.mlp"]
 features = sae.encode(activation)  # Sparse features
 reconstructed = sae.decode(features)  # Reconstructed activation
 ```
@@ -229,7 +229,7 @@ loss = MSE(input, reconstruction) + λ * L1(features)
 with model.trace("The capital of France is") as trace:
     pass
 
-activation = trace.activations["model.layers.10.mlp"]
+activation = trace.activations["model.model.layers.10.mlp"]
 
 # Encode to sparse features
 features = sae.encode(activation)
@@ -547,7 +547,7 @@ test_texts = ["Sample 1", "Sample 2", ...]
 with model.trace(test_texts) as trace:
     pass
 
-activation = trace.activations["model.layers.10.mlp"]
+activation = trace.activations["model.model.layers.10.mlp"]
 reconstructed = sae.decode(sae.encode(activation))
 mse = float(mx.mean((activation - reconstructed) ** 2))
 

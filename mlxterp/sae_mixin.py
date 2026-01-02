@@ -282,10 +282,13 @@ class SAEMixin:
                 f"Available keys: {list(trace.activations.keys())}"
             )
 
-        activations = trace.activations[activation_key]  # (seq_len, d_model)
+        activations = trace.activations[activation_key]  # (batch, seq_len, d_model)
 
-        # Add batch dimension for SAE: (seq_len, 1, d_model)
-        activations_3d = activations[:, None, :]
+        # Remove batch dimension and add SAE batch dimension
+        # activations shape: (batch, seq_len, d_model) -> (seq_len, d_model)
+        activations_2d = activations[0] if activations.ndim == 3 else activations
+        # Add SAE batch dimension: (seq_len, d_model) -> (seq_len, 1, d_model)
+        activations_3d = activations_2d[:, None, :]
 
         # Run through SAE
         _, features = sae(activations_3d)  # features: (seq_len, 1, d_hidden)
@@ -385,10 +388,13 @@ class SAEMixin:
             if activation_key is None:
                 continue
 
-            activations = trace.activations[activation_key]  # (seq_len, d_model)
+            activations = trace.activations[activation_key]  # (batch, seq_len, d_model)
 
-            # Add batch dimension: (seq_len, 1, d_model)
-            activations_3d = activations[:, None, :]
+            # Remove batch dimension and add SAE batch dimension
+            # activations shape: (batch, seq_len, d_model) -> (seq_len, d_model)
+            activations_2d = activations[0] if activations.ndim == 3 else activations
+            # Add SAE batch dimension: (seq_len, d_model) -> (seq_len, 1, d_model)
+            activations_3d = activations_2d[:, None, :]
 
             # Run through SAE
             _, features = sae(activations_3d)  # (seq_len, 1, d_hidden)

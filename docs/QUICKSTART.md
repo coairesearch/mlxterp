@@ -77,9 +77,9 @@ from mlxterp import InterpretableModel
 # Automatically loads model and tokenizer
 model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
 
-# Use with text
+# Use with text (use self_attn for mlx-lm models)
 with model.trace("Hello world"):
-    attn = model.layers[5].attn.output.save()
+    attn = model.layers[5].self_attn.output.save()
 ```
 
 ### 2. Work with Tokenizers

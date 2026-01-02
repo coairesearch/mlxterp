@@ -54,10 +54,18 @@ def get_activations(
             act = model.layers[layer_idx].output.save()
 
     # Extract saved activations
+    # Look for activation keys that match the layer pattern
     for layer_idx in layers:
-        layer_name = f"{model._layer_attr}.{layer_idx}"
-        if layer_name in trace.activations:
-            act = trace.activations[layer_name]
+        # Find the activation key for this layer
+        # Keys can be like "model.model.layers.{i}" or "layers.{i}" depending on model
+        activation_key = None
+        for key in trace.activations.keys():
+            if key.endswith(f".{model._layer_attr}.{layer_idx}") or key == f"{model._layer_attr}.{layer_idx}":
+                activation_key = key
+                break
+
+        if activation_key is not None:
+            act = trace.activations[activation_key]
 
             # Extract positions
             # act shape: (batch, seq_len, hidden_dim)

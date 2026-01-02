@@ -8,7 +8,7 @@ import mlx.core as mx
 import mlx.nn as nn
 from typing import Optional, Dict, Callable, Any, Union, List
 
-from .core import Trace, ModuleProxy, LayerListProxy
+from .core import Trace, ModuleProxy, LayerListProxy, ModuleResolver
 from .tokenization import TokenizerMixin
 from .analysis import AnalysisMixin
 from .sae_mixin import SAEMixin
@@ -46,6 +46,9 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
         model: Union[nn.Module, str],
         tokenizer: Optional[Any] = None,
         layer_attr: str = "layers",
+        embedding_path: Optional[str] = None,
+        norm_path: Optional[str] = None,
+        lm_head_path: Optional[str] = None,
     ):
         """
         Initialize an InterpretableModel.
@@ -55,6 +58,12 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
                    If string, attempts to load via mlx_lm or other loaders.
             tokenizer: Optional tokenizer for processing text inputs
             layer_attr: Name of the attribute containing model layers (default: "layers")
+            embedding_path: Override path for token embedding layer (e.g., "my_embed").
+                           Used for weight-tied output projection in get_token_predictions.
+            norm_path: Override path for final layer normalization (e.g., "my_norm").
+                       Used in logit_lens for projecting intermediate activations.
+            lm_head_path: Override path for output projection layer (e.g., "my_lm_head").
+                          If not found, falls back to weight-tied embedding.
 
         Raises:
             ValueError: If model is a string but cannot be loaded
@@ -77,6 +86,14 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
 
         # Cache for module proxies
         self._module_proxies: Dict[str, ModuleProxy] = {}
+
+        # Initialize module resolver for model-agnostic component access
+        self._module_resolver = ModuleResolver(
+            self.model,
+            embedding_path=embedding_path,
+            norm_path=norm_path,
+            lm_head_path=lm_head_path,
+        )
 
     def _load_model(self, model_name: str) -> nn.Module:
         """
