@@ -473,7 +473,7 @@ class TestTrainTunedLens:
         tuned_lens = train_tuned_lens(
             model,
             dataset,
-            num_steps=10,  # More steps to ensure weight changes
+            num_steps=50,  # More steps to ensure weight changes
             max_seq_len=50,
             learning_rate=1.0,
             verbose=False,
