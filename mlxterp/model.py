@@ -310,6 +310,92 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
             # Not in trace context - return placeholder
             return OutputProxy(value=None, name="__model_output__")
 
+    def train_tuned_lens(
+        self,
+        dataset: List[str],
+        num_steps: int = 250,
+        learning_rate: float = 1.0,
+        momentum: float = 0.9,
+        max_seq_len: int = 2048,
+        gradient_clip: float = 1.0,
+        save_path: Optional[str] = None,
+        verbose: bool = True,
+        callback: Optional[Callable[[int, float], None]] = None,
+    ) -> Any:
+        """
+        Train a tuned lens for this model.
+
+        The tuned lens technique (Belrose et al., 2023) trains small affine
+        transformations for each layer to correct for coordinate system
+        mismatches, producing more accurate intermediate predictions than
+        the standard logit lens.
+
+        Note:
+            Training processes one sequence chunk at a time (no batching).
+            This follows the paper's approach where each training step uses
+            a single sequence of up to max_seq_len tokens.
+
+        Args:
+            dataset: List of text strings for training
+            num_steps: Number of training steps (default: 250)
+            learning_rate: Initial learning rate (default: 1.0)
+            momentum: Nesterov momentum coefficient (default: 0.9)
+            max_seq_len: Maximum sequence length for training chunks (default: 2048)
+            gradient_clip: Gradient clipping norm (default: 1.0)
+            save_path: Optional path to save trained weights (creates .npz and .json files)
+            verbose: If True, print training progress
+            callback: Optional callback function called with (step, loss) after each step
+
+        Returns:
+            Trained TunedLens instance
+
+        Example:
+            >>> model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+            >>> texts = ["Sample text 1", "Sample text 2", ...]
+            >>> tuned_lens = model.train_tuned_lens(
+            ...     texts,
+            ...     num_steps=250,
+            ...     save_path="tuned_lens_llama"  # Creates .npz and .json files
+            ... )
+            >>> # Use with tuned_lens
+            >>> results = model.tuned_lens("Hello world", tuned_lens)
+
+        Reference:
+            Belrose et al., "Eliciting Latent Predictions from Transformers with the Tuned Lens"
+            https://arxiv.org/abs/2303.08112
+        """
+        from .tuned_lens import train_tuned_lens
+        return train_tuned_lens(
+            self,
+            dataset=dataset,
+            num_steps=num_steps,
+            learning_rate=learning_rate,
+            momentum=momentum,
+            max_seq_len=max_seq_len,
+            gradient_clip=gradient_clip,
+            save_path=save_path,
+            verbose=verbose,
+            callback=callback,
+        )
+
+    def load_tuned_lens(self, path: str) -> Any:
+        """
+        Load a pre-trained tuned lens from a file.
+
+        Args:
+            path: Path to the saved tuned lens weights (expects .npz and .json files)
+
+        Returns:
+            Loaded TunedLens instance
+
+        Example:
+            >>> model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+            >>> tuned_lens = model.load_tuned_lens("tuned_lens_llama")  # Loads .npz and .json
+            >>> results = model.tuned_lens("Hello world", tuned_lens)
+        """
+        from .tuned_lens import TunedLens
+        return TunedLens.load(path)
+
     def __repr__(self):
         """String representation of the model"""
         model_type = type(self.model).__name__

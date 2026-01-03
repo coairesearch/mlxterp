@@ -189,7 +189,7 @@ def train_tuned_lens(
     return tuned_lens
 
 
-def tuned_logit_lens(
+def tuned_lens(
     model: InterpretableModel,
     tuned_lens: TunedLens,
     text: str,
@@ -241,7 +241,7 @@ tuned_lens = train_tuned_lens(model, texts, num_steps=250)
 text = "The capital of France is"
 
 raw_results = model.logit_lens(text, layers=[0, 5, 10, 15])
-tuned_results = tuned_logit_lens(model, tuned_lens, text, layers=[0, 5, 10, 15])
+tuned_results = tuned_lens(model, tuned_lens, text, layers=[0, 5, 10, 15])
 
 print("Layer | Raw Logit Lens | Tuned Lens")
 print("-" * 45)

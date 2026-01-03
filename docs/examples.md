@@ -433,6 +433,97 @@ for prompt in prompts:
 # 'The capital of Italy is' -> ' Rome' (17.8)
 ```
 
+## Tuned Lens
+
+The tuned lens technique (Belrose et al., 2023) improves on the logit lens by learning small affine transformations for each layer that correct for coordinate system mismatches between layers.
+
+### Training a Tuned Lens
+
+```python
+from mlxterp import InterpretableModel
+
+# Load model
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+
+# Prepare training data - any text corpus works
+training_texts = [
+    "The capital of France is Paris, which is known for the Eiffel Tower.",
+    "Machine learning is a branch of artificial intelligence.",
+    "Python is a popular programming language for data science.",
+    # Add more diverse training texts...
+]
+
+# Train tuned lens (takes a few minutes depending on dataset size)
+tuned_lens = model.train_tuned_lens(
+    dataset=training_texts,
+    num_steps=250,
+    save_path="my_tuned_lens.npz",  # Auto-saves config + weights
+    verbose=True
+)
+```
+
+### Loading a Pre-trained Tuned Lens
+
+```python
+# Load previously trained tuned lens
+tuned_lens = model.load_tuned_lens("my_tuned_lens.npz")
+```
+
+### Using the Tuned Lens
+
+```python
+# Apply tuned lens (similar API to logit_lens)
+results = model.tuned_lens(
+    "The capital of France is",
+    tuned_lens,
+    layers=[0, 5, 10, 15]
+)
+
+# Print predictions at last position for each layer
+for layer_idx in sorted(results.keys()):
+    top_pred = results[layer_idx][-1][0]  # Last position, top prediction
+    token_str = top_pred[2]
+    score = top_pred[1]
+    print(f"Layer {layer_idx:2d}: '{token_str}' (score: {score:.2f})")
+```
+
+### Comparing Logit Lens vs Tuned Lens
+
+```python
+text = "The capital of France is"
+
+# Regular logit lens
+regular = model.logit_lens(text, layers=[0, 5, 10, 15])
+
+# Tuned lens
+tuned = model.tuned_lens(text, tuned_lens, layers=[0, 5, 10, 15])
+
+print("Comparison: Logit Lens vs Tuned Lens")
+print("-" * 45)
+for layer_idx in [0, 5, 10, 15]:
+    reg_pred = regular[layer_idx][-1][0][2]  # Last pos, top pred
+    tun_pred = tuned[layer_idx][-1][0][2]
+    match = "=" if reg_pred == tun_pred else "!"
+    print(f"Layer {layer_idx:2d}: Regular='{reg_pred:>10}' | Tuned='{tun_pred:>10}' {match}")
+
+# Tuned lens often produces more accurate predictions in early layers
+```
+
+### Visualizing Tuned Lens Results
+
+```python
+# Generate heatmap visualization
+results = model.tuned_lens(
+    "The Eiffel Tower is located in the city of",
+    tuned_lens,
+    plot=True,
+    max_display_tokens=15,
+    figsize=(16, 10)
+)
+```
+
+**Reference:** Belrose et al., "Eliciting Latent Predictions from Transformers with the Tuned Lens" (https://arxiv.org/abs/2303.08112)
+
 ## Activation Collection
 
 ### Collecting Specific Layers

@@ -40,6 +40,7 @@ from .core import (
 )
 from .utils import get_activations, batch_get_activations
 from .sae import SAE, SAEConfig, SAETrainer
+from .tuned_lens import TunedLens, train_tuned_lens
 
 # Create interventions namespace for cleaner imports
 class _Interventions:
@@ -76,4 +77,7 @@ __all__ = [
     "SAE",
     "SAEConfig",
     "SAETrainer",
+    # Tuned Lens
+    "TunedLens",
+    "train_tuned_lens",
 ]
