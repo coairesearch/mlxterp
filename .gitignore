@@ -83,3 +83,6 @@ check_*.py
 *_FIX.md
 *_SUMMARY.md
 scratch.*
+
+# Blog
+blog/
