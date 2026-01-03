@@ -435,7 +435,7 @@ class AnalysisMixin:
 
         return results
 
-    def tuned_logit_lens(
+    def tuned_lens(
         self,
         text: str,
         tuned_lens: Any,
@@ -479,7 +479,7 @@ class AnalysisMixin:
             >>> # tuned_lens = TunedLens.load("tuned_lens")  # Loads .npz and .json files
             >>>
             >>> # Apply tuned lens
-            >>> results = model.tuned_logit_lens(
+            >>> results = model.tuned_lens(
             ...     "The capital of France is",
             ...     tuned_lens,
             ...     layers=[0, 5, 10, 15],

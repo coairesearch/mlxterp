@@ -454,14 +454,14 @@ results = model.logit_lens(
 
 ---
 
-#### Method: `tuned_logit_lens`
+#### Method: `tuned_lens`
 
 Apply tuned lens for improved layer-wise predictions.
 
 The tuned lens technique (Belrose et al., 2023) uses learned affine transformations for each layer to correct for coordinate system mismatches between layers, producing more accurate intermediate predictions than the standard logit lens.
 
 ```python
-model.tuned_logit_lens(
+model.tuned_lens(
     text: str,
     tuned_lens: TunedLens,
     top_k: int = 1,
@@ -508,7 +508,7 @@ tuned_lens = model.train_tuned_lens(
 tuned_lens = model.load_tuned_lens("tuned_lens_llama.npz")
 
 # Apply tuned lens
-results = model.tuned_logit_lens(
+results = model.tuned_lens(
     "The capital of France is",
     tuned_lens,
     layers=[0, 5, 10, 15],
@@ -604,7 +604,7 @@ model.load_tuned_lens(path: str) -> TunedLens
 
 ```python
 tuned_lens = model.load_tuned_lens("tuned_lens_llama.npz")
-results = model.tuned_logit_lens("Hello world", tuned_lens)
+results = model.tuned_lens("Hello world", tuned_lens)
 ```
 
 ---

@@ -357,8 +357,8 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
             ...     num_steps=250,
             ...     save_path="tuned_lens_llama"  # Creates .npz and .json files
             ... )
-            >>> # Use with tuned_logit_lens
-            >>> results = model.tuned_logit_lens("Hello world", tuned_lens)
+            >>> # Use with tuned_lens
+            >>> results = model.tuned_lens("Hello world", tuned_lens)
 
         Reference:
             Belrose et al., "Eliciting Latent Predictions from Transformers with the Tuned Lens"
@@ -391,7 +391,7 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
         Example:
             >>> model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
             >>> tuned_lens = model.load_tuned_lens("tuned_lens_llama")  # Loads .npz and .json
-            >>> results = model.tuned_logit_lens("Hello world", tuned_lens)
+            >>> results = model.tuned_lens("Hello world", tuned_lens)
         """
         from .tuned_lens import TunedLens
         return TunedLens.load(path)

@@ -6,7 +6,7 @@ Tests cover:
 - Identity initialization behavior
 - Save/load functionality
 - Integration with InterpretableModel
-- tuned_logit_lens method
+- tuned_lens method
 """
 
 import pytest
@@ -276,12 +276,12 @@ class TestTunedLensIntegration:
         tokenizer = MockTokenizer(vocab_size=100)
         return InterpretableModel(base, tokenizer=tokenizer)
 
-    def test_tuned_logit_lens_basic(self, model):
-        """Test basic tuned_logit_lens call."""
+    def test_tuned_lens_basic(self, model):
+        """Test basic tuned_lens call."""
         tuned_lens = TunedLens(num_layers=4, hidden_dim=32)
         input_tokens = mx.array([[1, 2, 3]])
 
-        results = model.tuned_logit_lens(input_tokens, tuned_lens, layers=[0, 1])
+        results = model.tuned_lens(input_tokens, tuned_lens, layers=[0, 1])
 
         # Check structure
         assert isinstance(results, dict)
@@ -294,35 +294,35 @@ class TestTunedLensIntegration:
                 for pred in pos_results:
                     assert len(pred) == 3  # (token_id, score, token_str)
 
-    def test_tuned_logit_lens_specific_layers(self, model):
-        """Test tuned_logit_lens with specific layers."""
+    def test_tuned_lens_specific_layers(self, model):
+        """Test tuned_lens with specific layers."""
         tuned_lens = TunedLens(num_layers=4, hidden_dim=32)
         input_tokens = mx.array([[1, 2, 3]])
 
-        results = model.tuned_logit_lens(input_tokens, tuned_lens, layers=[0, 2])
+        results = model.tuned_lens(input_tokens, tuned_lens, layers=[0, 2])
 
         assert set(results.keys()).issubset({0, 2})
 
-    def test_tuned_logit_lens_position(self, model):
-        """Test tuned_logit_lens with position parameter."""
+    def test_tuned_lens_position(self, model):
+        """Test tuned_lens with position parameter."""
         tuned_lens = TunedLens(num_layers=4, hidden_dim=32)
         input_tokens = mx.array([[1, 2, 3, 4, 5]])
 
         # All positions
-        results_all = model.tuned_logit_lens(input_tokens, tuned_lens, layers=[0])
+        results_all = model.tuned_lens(input_tokens, tuned_lens, layers=[0])
         # Last position only
-        results_last = model.tuned_logit_lens(input_tokens, tuned_lens, layers=[0], position=-1)
+        results_last = model.tuned_lens(input_tokens, tuned_lens, layers=[0], position=-1)
 
         assert len(results_all[0]) == 5
         assert len(results_last[0]) == 1
 
-    def test_tuned_logit_lens_top_k(self, model):
-        """Test tuned_logit_lens top_k parameter."""
+    def test_tuned_lens_top_k(self, model):
+        """Test tuned_lens top_k parameter."""
         tuned_lens = TunedLens(num_layers=4, hidden_dim=32)
         input_tokens = mx.array([[1, 2, 3]])
 
-        results_1 = model.tuned_logit_lens(input_tokens, tuned_lens, layers=[0], top_k=1)
-        results_5 = model.tuned_logit_lens(input_tokens, tuned_lens, layers=[0], top_k=5)
+        results_1 = model.tuned_lens(input_tokens, tuned_lens, layers=[0], top_k=1)
+        results_5 = model.tuned_lens(input_tokens, tuned_lens, layers=[0], top_k=5)
 
         for pos_preds in results_1[0]:
             assert len(pos_preds) == 1
@@ -371,7 +371,7 @@ class TestTunedLensCompareLogitLens:
 
         # Get both results
         regular = model.logit_lens(input_tokens, layers=[0, 1, 2, 3])
-        tuned = model.tuned_logit_lens(input_tokens, tuned_lens, layers=[0, 1, 2, 3])
+        tuned = model.tuned_lens(input_tokens, tuned_lens, layers=[0, 1, 2, 3])
 
         # With identity initialization, predictions should be very similar
         for layer_idx in regular.keys():
@@ -406,7 +406,7 @@ class TestTunedLensEdgeCases:
         tuned_lens = TunedLens(num_layers=4, hidden_dim=32)
         input_tokens = mx.array([[1, 2, 3]])
 
-        results = model.tuned_logit_lens(input_tokens, tuned_lens, layers=[])
+        results = model.tuned_lens(input_tokens, tuned_lens, layers=[])
 
         assert results == {}
 

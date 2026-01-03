@@ -473,7 +473,7 @@ tuned_lens = model.load_tuned_lens("my_tuned_lens.npz")
 
 ```python
 # Apply tuned lens (similar API to logit_lens)
-results = model.tuned_logit_lens(
+results = model.tuned_lens(
     "The capital of France is",
     tuned_lens,
     layers=[0, 5, 10, 15]
@@ -496,7 +496,7 @@ text = "The capital of France is"
 regular = model.logit_lens(text, layers=[0, 5, 10, 15])
 
 # Tuned lens
-tuned = model.tuned_logit_lens(text, tuned_lens, layers=[0, 5, 10, 15])
+tuned = model.tuned_lens(text, tuned_lens, layers=[0, 5, 10, 15])
 
 print("Comparison: Logit Lens vs Tuned Lens")
 print("-" * 45)
@@ -513,7 +513,7 @@ for layer_idx in [0, 5, 10, 15]:
 
 ```python
 # Generate heatmap visualization
-results = model.tuned_logit_lens(
+results = model.tuned_lens(
     "The Eiffel Tower is located in the city of",
     tuned_lens,
     plot=True,
