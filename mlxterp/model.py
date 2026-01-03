@@ -69,16 +69,18 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
             ValueError: If model is a string but cannot be loaded
             AttributeError: If layer_attr doesn't exist on the model
         """
+        # Initialize tokenizer before model loading (needed by _load_model)
+        self.tokenizer = tokenizer
+
         # Handle model loading
         if isinstance(model, str):
             self.model = self._load_model(model)
             # If tokenizer not provided, try to load it with the model
-            if tokenizer is None:
-                tokenizer = self._try_load_tokenizer(model)
+            if self.tokenizer is None:
+                self.tokenizer = self._try_load_tokenizer(model)
         else:
             self.model = model
 
-        self.tokenizer = tokenizer
         self._layer_attr = layer_attr
 
         # Discover and wrap layers

@@ -263,7 +263,7 @@ def main():
 
     # Load model
     print("\nLoading model...")
-    model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+    model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
     print(f"Model loaded: {len(model.layers)} layers")
 
     # Run experiments
