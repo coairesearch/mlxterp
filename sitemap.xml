@@ -17,10 +17,6 @@
          <lastmod>2026-01-03</lastmod>
     </url>
     <url>
-         <loc>https://github.com/coairesearch/mlxterp/TUTORIAL_PAPERS_PLAN/</loc>
-         <lastmod>2026-01-03</lastmod>
-    </url>
-    <url>
          <loc>https://github.com/coairesearch/mlxterp/architecture/</loc>
          <lastmod>2026-01-03</lastmod>
     </url>
@@ -61,6 +57,10 @@
          <lastmod>2026-01-03</lastmod>
     </url>
     <url>
+         <loc>https://github.com/coairesearch/mlxterp/dev/TUTORIAL_PAPERS_PLAN/</loc>
+         <lastmod>2026-01-03</lastmod>
+    </url>
+    <url>
          <loc>https://github.com/coairesearch/mlxterp/guides/activation_patching/</loc>
          <lastmod>2026-01-03</lastmod>
     </url>
@@ -74,6 +74,34 @@
     </url>
     <url>
          <loc>https://github.com/coairesearch/mlxterp/guides/sae_feature_analysis/</loc>
+         <lastmod>2026-01-03</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/coairesearch/mlxterp/tutorials/</loc>
+         <lastmod>2026-01-03</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/coairesearch/mlxterp/tutorials/01_logit_lens/</loc>
+         <lastmod>2026-01-03</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/coairesearch/mlxterp/tutorials/02_tuned_lens/</loc>
+         <lastmod>2026-01-03</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/coairesearch/mlxterp/tutorials/03_causal_tracing/</loc>
+         <lastmod>2026-01-03</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/coairesearch/mlxterp/tutorials/04_steering_vectors/</loc>
+         <lastmod>2026-01-03</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/coairesearch/mlxterp/tutorials/05_induction_heads/</loc>
+         <lastmod>2026-01-03</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/coairesearch/mlxterp/tutorials/06_sparse_autoencoders/</loc>
          <lastmod>2026-01-03</lastmod>
     </url>
 </urlset>

@@ -12,9 +12,13 @@
         <meta name="author" content="Sigurd Schacht">
       
       
-        <link rel="canonical" href="https://github.com/coairesearch/mlxterp/dev/">
+        <link rel="canonical" href="https://github.com/coairesearch/mlxterp/tutorials/">
       
       
+        <link rel="prev" href="../API/">
+      
+      
+        <link rel="next" href="01_logit_lens/">
       
       
         
@@ -25,7 +29,7 @@
     
     
       
-        <title>Development Documentation - mlxterp</title>
+        <title>Overview - mlxterp</title>
       
     
     
@@ -78,7 +82,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#development-documentation" class="md-skip">
+        <a href="#paper-reproduction-tutorials" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +116,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Development Documentation
+              Overview
             
           </span>
         </div>
@@ -282,11 +286,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../tutorials/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -668,28 +674,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -707,7 +716,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -722,10 +731,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../tutorials/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -741,6 +777,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-paper-reproductions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Paper Reproductions?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tutorials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tutorials
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting Started
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the Examples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -753,7 +875,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/01_logit_lens/" class="md-nav__link">
+      <a href="01_logit_lens/" class="md-nav__link">
         
   
   
@@ -781,7 +903,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/02_tuned_lens/" class="md-nav__link">
+      <a href="02_tuned_lens/" class="md-nav__link">
         
   
   
@@ -809,7 +931,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/03_causal_tracing/" class="md-nav__link">
+      <a href="03_causal_tracing/" class="md-nav__link">
         
   
   
@@ -837,7 +959,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/04_steering_vectors/" class="md-nav__link">
+      <a href="04_steering_vectors/" class="md-nav__link">
         
   
   
@@ -865,7 +987,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/05_induction_heads/" class="md-nav__link">
+      <a href="05_induction_heads/" class="md-nav__link">
         
   
   
@@ -893,7 +1015,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/06_sparse_autoencoders/" class="md-nav__link">
+      <a href="06_sparse_autoencoders/" class="md-nav__link">
         
   
   
@@ -1355,10 +1477,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#files" class="md-nav__link">
+  <a href="#why-paper-reproductions" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Files
+        Why Paper Reproductions?
       
     </span>
   </a>
@@ -1366,10 +1488,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#for-contributors" class="md-nav__link">
+  <a href="#tutorials" class="md-nav__link">
     <span class="md-ellipsis">
       
-        For Contributors
+        Tutorials
       
     </span>
   </a>
@@ -1377,10 +1499,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#for-users" class="md-nav__link">
+  <a href="#prerequisites" class="md-nav__link">
     <span class="md-ellipsis">
       
-        For Users
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Getting Started
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-the-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running the Examples
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
       
     </span>
   </a>
@@ -1407,30 +1562,118 @@
   
 
 
-<h1 id="development-documentation">Development Documentation<a class="headerlink" href="#development-documentation" title="Permanent link">&para;</a></h1>
-<p>This directory contains internal development documentation and design notes that are useful for contributors but not part of the main user-facing documentation.</p>
-<h2 id="files">Files<a class="headerlink" href="#files" title="Permanent link">&para;</a></h2>
+<h1 id="paper-reproduction-tutorials">Paper Reproduction Tutorials<a class="headerlink" href="#paper-reproduction-tutorials" title="Permanent link">&para;</a></h1>
+<p>This section contains tutorials that reproduce key mechanistic interpretability research papers using mlxterp. Each tutorial demonstrates the library's capabilities through concrete, educational examples that match the original papers' findings.</p>
+<h2 id="why-paper-reproductions">Why Paper Reproductions?<a class="headerlink" href="#why-paper-reproductions" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Validation</strong>: Verify that mlxterp produces the same results as established research</li>
+<li><strong>Education</strong>: Learn mechanistic interpretability concepts through hands-on implementation</li>
+<li><strong>Reference</strong>: Use these as starting points for your own research</li>
+</ol>
+<h2 id="tutorials">Tutorials<a class="headerlink" href="#tutorials" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Paper</th>
+<th>Difficulty</th>
+<th>Time</th>
+<th>Key Concept</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><a href="01_logit_lens/">Logit Lens</a></td>
+<td>Beginner</td>
+<td>1-2h</td>
+<td>Intermediate layer predictions</td>
+</tr>
+<tr>
+<td>2</td>
+<td><a href="02_tuned_lens/">Tuned Lens</a></td>
+<td>Beginner-Int</td>
+<td>3-4h</td>
+<td>Learned prediction probes</td>
+</tr>
+<tr>
+<td>3</td>
+<td><a href="03_causal_tracing/">Causal Tracing (ROME)</a></td>
+<td>Intermediate</td>
+<td>3-4h</td>
+<td>Knowledge localization</td>
+</tr>
+<tr>
+<td>4</td>
+<td><a href="04_steering_vectors/">Steering Vectors (CAA)</a></td>
+<td>Intermediate</td>
+<td>2-3h</td>
+<td>Behavior control</td>
+</tr>
+<tr>
+<td>5</td>
+<td><a href="05_induction_heads/">Induction Heads</a></td>
+<td>Int-Advanced</td>
+<td>4-5h</td>
+<td>Pattern completion circuits</td>
+</tr>
+<tr>
+<td>6</td>
+<td><a href="06_sparse_autoencoders/">Sparse Autoencoders</a></td>
+<td>Advanced</td>
+<td>5-6h</td>
+<td>Feature decomposition</td>
+</tr>
+</tbody>
+</table>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
+<p>Before starting these tutorials, ensure you have:</p>
 <ul>
-<li><strong>IMPLEMENTATION_SUMMARY.md</strong> - Summary of core implementation details and architecture decisions</li>
-<li><strong>PERFORMANCE_NOTES.md</strong> - Performance optimization notes and benchmarks</li>
-<li><strong>PHASE2_COMPLETE.md</strong> - SAE Phase 2 feature analysis completion summary</li>
-<li><strong>SAE_PHASE2_SUMMARY.md</strong> - Detailed summary of SAE Phase 2 implementation</li>
-<li><strong>SAELENS_COMPARISON.md</strong> - Comparison between mlxterp and SAELens approaches</li>
+<li>mlxterp installed with all extras: <code>pip install mlxterp[dev,docs,viz]</code></li>
+<li>A Mac with Apple Silicon (M1/M2/M3/M4) for optimal performance</li>
+<li>Basic familiarity with transformers and neural networks</li>
+<li>Python knowledge (intermediate level)</li>
 </ul>
-<h2 id="for-contributors">For Contributors<a class="headerlink" href="#for-contributors" title="Permanent link">&para;</a></h2>
-<p>If you're contributing to mlxterp, these documents provide context about:
-- Design decisions and rationale
-- Implementation patterns to follow
-- Performance considerations
-- Feature development roadmaps</p>
-<h2 id="for-users">For Users<a class="headerlink" href="#for-users" title="Permanent link">&para;</a></h2>
-<p>User-facing documentation is available at:
-- Main docs: <code>docs/</code> directory
-- API reference: Generated from docstrings
-- Guides: <code>docs/guides/</code> directory</p>
-<p>Build and view the documentation with:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>mkdocs<span class="w"> </span>serve
-</span></code></pre></div></p>
+<h2 id="getting-started">Getting Started<a class="headerlink" href="#getting-started" title="Permanent link">&para;</a></h2>
+<p>We recommend following the tutorials in order, as concepts build upon each other:</p>
+<ol>
+<li><strong>Start with Logit Lens</strong> - Introduces the core concept of examining intermediate predictions</li>
+<li><strong>Move to Tuned Lens</strong> - Shows how to improve upon the basic logit lens</li>
+<li><strong>Then Causal Tracing</strong> - Learn to localize where information is stored</li>
+<li><strong>Continue with Steering</strong> - Apply what you've learned to control model behavior</li>
+<li><strong>Explore Induction Heads</strong> - Understand a fundamental transformer circuit</li>
+<li><strong>Finish with SAEs</strong> - The frontier of interpretability research</li>
+</ol>
+<h2 id="running-the-examples">Running the Examples<a class="headerlink" href="#running-the-examples" title="Permanent link">&para;</a></h2>
+<p>Each tutorial has an accompanying Python script in <code>examples/tutorials/</code>:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Run the Logit Lens tutorial</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python<span class="w"> </span>examples/tutorials/01_logit_lens/logit_lens_tutorial.py
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># Run the Causal Tracing tutorial</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>python<span class="w"> </span>examples/tutorials/02_causal_tracing/causal_tracing_tutorial.py
+</span></code></pre></div>
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<p>These tutorials are based on the following papers:</p>
+<ol>
+<li>
+<p><strong>Logit Lens</strong>: nostalgebraist (2020). <a href="https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens">interpreting GPT: the logit lens</a></p>
+</li>
+<li>
+<p><strong>Tuned Lens</strong>: Belrose et al. (2023). <a href="https://arxiv.org/abs/2303.08112">Eliciting Latent Predictions from Transformers with the Tuned Lens</a>. NeurIPS 2023.</p>
+</li>
+<li>
+<p><strong>ROME / Causal Tracing</strong>: Meng et al. (2022). <a href="https://arxiv.org/abs/2202.05262">Locating and Editing Factual Associations in GPT</a>. NeurIPS 2022.</p>
+</li>
+<li>
+<p><strong>Contrastive Activation Addition</strong>: Rimsky et al. (2024). <a href="https://arxiv.org/abs/2312.06681">Steering Llama 2 via Contrastive Activation Addition</a>. ACL 2024.</p>
+</li>
+<li>
+<p><strong>Induction Heads</strong>: Olsson et al. (2022). <a href="https://transformer-circuits.pub/2022/in-context-learning-and-induction-heads/">In-context Learning and Induction Heads</a>. Anthropic.</p>
+</li>
+<li>
+<p><strong>Sparse Autoencoders</strong>: Anthropic (2023). <a href="https://transformer-circuits.pub/2023/monosemantic-features/">Towards Monosemanticity: Decomposing Language Models With Dictionary Learning</a>.</p>
+</li>
+</ol>
 
 
 
