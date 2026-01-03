@@ -447,6 +447,8 @@ class AnalysisMixin:
         figsize: tuple = (16, 10),
         cmap: str = 'viridis',
         font_family: Optional[str] = None,
+        final_norm: Any = None,
+        skip_norm: bool = False,
     ) -> Dict[int, List[List[tuple]]]:
         """
         Apply tuned lens for improved layer-wise predictions.
@@ -467,6 +469,8 @@ class AnalysisMixin:
             figsize: Figure size for plot (width, height)
             cmap: Colormap for heatmap (default: 'viridis')
             font_family: Font to use for plot (for CJK support use 'Arial Unicode MS' or None for auto-detect)
+            final_norm: Optional override for the final layer norm. Pass a callable to use a custom norm.
+            skip_norm: If True, skip final layer normalization (for models without it)
 
         Returns:
             Dict mapping layer_idx -> list of positions -> list of (token_id, score, token_str) tuples
@@ -503,14 +507,20 @@ class AnalysisMixin:
         # Get tokens for displaying input
         tokens = self.encode(text)
 
-        # Get final layer norm
-        final_norm_layer = self._module_resolver.get_final_norm()
-        if final_norm_layer is None:
-            warnings.warn(
-                "Cannot find final layer norm for tuned lens. Tried paths:\n"
-                f"  {self._module_resolver.NORM_PATHS}\n"
-                "Proceeding without normalization. This may affect prediction quality."
-            )
+        # Get final layer norm (handle overrides)
+        if skip_norm:
+            final_norm_layer = None
+        elif final_norm is not None:
+            final_norm_layer = final_norm
+        else:
+            final_norm_layer = self._module_resolver.get_final_norm()
+            if final_norm_layer is None:
+                warnings.warn(
+                    "Cannot find final layer norm for tuned lens. Tried paths:\n"
+                    f"  {self._module_resolver.NORM_PATHS}\n"
+                    "Proceeding without normalization. This may affect prediction quality.\n"
+                    "Use skip_norm=True to suppress this warning, or final_norm=<norm> to provide one."
+                )
 
         # Determine which layers to analyze
         if layers is None:
@@ -531,9 +541,15 @@ class AnalysisMixin:
 
             layer_predictions = []
 
-            # Determine positions to analyze
+            # Determine positions to analyze with bounds checking
             if position is not None:
                 actual_pos = position if position >= 0 else seq_len + position
+                # Validate position is within bounds
+                if actual_pos < 0 or actual_pos >= seq_len:
+                    raise ValueError(
+                        f"Position {position} is out of bounds for sequence length {seq_len}. "
+                        f"Valid range: [{-seq_len}, {seq_len - 1}]"
+                    )
                 positions_to_analyze = [actual_pos]
             else:
                 positions_to_analyze = range(seq_len)

@@ -369,9 +369,9 @@ class TestTunedLensCompareLogitLens:
         tuned_lens = TunedLens(num_layers=4, hidden_dim=32)
         input_tokens = mx.array([[1, 2, 3]])
 
-        # Get both results
-        regular = model.logit_lens(input_tokens, layers=[0, 1, 2, 3])
-        tuned = model.tuned_lens(input_tokens, tuned_lens, layers=[0, 1, 2, 3])
+        # Get both results with top_k=5 to allow for comparison
+        regular = model.logit_lens(input_tokens, layers=[0, 1, 2, 3], top_k=5)
+        tuned = model.tuned_lens(input_tokens, tuned_lens, layers=[0, 1, 2, 3], top_k=5)
 
         # With identity initialization, predictions should be very similar
         for layer_idx in regular.keys():
@@ -380,9 +380,15 @@ class TestTunedLensCompareLogitLens:
                     reg_top = regular[layer_idx][pos_idx][0][0]  # Top token ID
                     tuned_top = tuned[layer_idx][pos_idx][0][0]  # Top token ID
                     # May not be exactly equal due to floating point, but should be similar
-                    # We check that at least one matches in top-5
-                    reg_tokens = set(p[0] for p in regular[layer_idx][pos_idx][:5])
-                    assert tuned_top in reg_tokens or reg_top in tuned.get(layer_idx, [[]])[pos_idx][:5]
+                    # Extract token IDs from tuples: each pred is (token_id, score, token_str)
+                    reg_tokens = set(p[0] for p in regular[layer_idx][pos_idx])
+                    tuned_tokens = set(p[0] for p in tuned[layer_idx][pos_idx])
+                    # Check that at least one top prediction appears in the other's top-5
+                    assert tuned_top in reg_tokens or reg_top in tuned_tokens, (
+                        f"Layer {layer_idx}, pos {pos_idx}: "
+                        f"reg_top={reg_top} not in tuned_tokens={tuned_tokens} and "
+                        f"tuned_top={tuned_top} not in reg_tokens={reg_tokens}"
+                    )
 
 
 class TestTunedLensEdgeCases:
@@ -478,6 +484,10 @@ class TestTrainTunedLens:
             learning_rate=1.0,
             verbose=False,
         )
+
+        # Force evaluation of all weights before checking
+        for translator in tuned_lens.translators:
+            mx.eval(translator.weight, translator.bias)
 
         # After training, at least one translator should differ from identity
         max_weight_diff = 0.0

@@ -471,7 +471,9 @@ model.tuned_lens(
     max_display_tokens: int = 15,
     figsize: tuple = (16, 10),
     cmap: str = 'viridis',
-    font_family: Optional[str] = None
+    font_family: Optional[str] = None,
+    final_norm: Any = None,
+    skip_norm: bool = False
 ) -> Dict[int, List[List[tuple]]]
 ```
 
@@ -487,6 +489,8 @@ model.tuned_lens(
 - **figsize** (`tuple`, default: `(16, 10)`): Figure size for plot
 - **cmap** (`str`, default: `'viridis'`): Colormap for heatmap
 - **font_family** (`Optional[str]`): Font for plot (auto-detected if None)
+- **final_norm** (`Any`, default: `None`): Override for final layer norm. Pass a callable to use a custom norm.
+- **skip_norm** (`bool`, default: `False`): If True, skip final layer normalization (for models without it)
 
 **Returns:** Dict mapping `layer_idx` -> list of positions -> list of `(token_id, score, token_str)` tuples
 
@@ -536,7 +540,6 @@ model.train_tuned_lens(
     learning_rate: float = 1.0,
     momentum: float = 0.9,
     max_seq_len: int = 2048,
-    batch_size: int = 1,
     gradient_clip: float = 1.0,
     save_path: Optional[str] = None,
     verbose: bool = True,
@@ -551,13 +554,19 @@ model.train_tuned_lens(
 - **learning_rate** (`float`, default: `1.0`): Initial learning rate (uses linear decay)
 - **momentum** (`float`, default: `0.9`): Nesterov momentum coefficient
 - **max_seq_len** (`int`, default: `2048`): Maximum sequence length for training chunks
-- **batch_size** (`int`, default: `1`): Batch size
 - **gradient_clip** (`float`, default: `1.0`): Gradient clipping norm
 - **save_path** (`Optional[str]`): Path to save trained weights
 - **verbose** (`bool`, default: `True`): Print training progress
 - **callback** (`Optional[Callable]`): Callback function called with `(step, loss)` after each step
 
 **Returns:** Trained `TunedLens` instance
+
+**Raises:**
+
+- `ValueError`: If dataset is empty or contains only whitespace
+- `ValueError`: If dataset has fewer tokens than `max_seq_len`
+- `ValueError`: If `max_seq_len` is less than 10 tokens
+- `ValueError`: If model hidden dimension cannot be determined
 
 **Training Details (from paper):**
 - Optimizer: SGD with Nesterov momentum (0.9)

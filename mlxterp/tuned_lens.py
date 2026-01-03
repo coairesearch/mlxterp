@@ -16,6 +16,7 @@ import mlx.utils
 from typing import Optional, List, Dict, Any, Callable
 from pathlib import Path
 import json
+import warnings
 
 
 def log_softmax(x: mx.array, axis: int = -1) -> mx.array:
@@ -239,6 +240,18 @@ def train_tuned_lens(
     import mlx.optimizers as optim
     from .core.module_resolver import find_layer_key_pattern
 
+    # Validate dataset is not empty
+    if not dataset:
+        raise ValueError(
+            "Dataset is empty. Provide a non-empty list of text strings for training."
+        )
+
+    if not any(text.strip() for text in dataset):
+        raise ValueError(
+            "Dataset contains only empty or whitespace strings. "
+            "Provide text strings with actual content."
+        )
+
     # Get model dimensions
     num_layers = len(model.layers)
 
@@ -254,7 +267,9 @@ def train_tuned_lens(
             hidden_dim = embed_layer.scales.shape[0]
         else:
             # Fallback: try to get from a trace
-            sample_tokens = model.encode(dataset[0][:100])
+            # Find first non-empty text
+            sample_text = next((t for t in dataset if t.strip()), dataset[0])
+            sample_tokens = model.encode(sample_text[:100])
             with model.trace(mx.array([sample_tokens[:10]])) as trace:
                 pass
             # Get dimension from first layer output
@@ -297,17 +312,30 @@ def train_tuned_lens(
         print(f"Training tuned lens: {num_layers} layers, {hidden_dim} hidden dim")
         print(f"Dataset: {len(all_tokens)} tokens, {num_steps} steps")
 
+    # Pre-compute dequantized weights if weight-tied and quantized (avoids repeated dequantization)
+    if is_weight_tied and hasattr(proj_module, "scales"):
+        embed_weights = mx.dequantize(
+            proj_module.weight,
+            proj_module.scales,
+            proj_module.biases,
+            proj_module.group_size,
+            proj_module.bits,
+        )
+    elif is_weight_tied:
+        embed_weights = proj_module.weight
+    else:
+        embed_weights = None
+
     # Define loss function
-    def compute_loss(tuned_lens_params, input_tokens, layer_activations, target_logits):
+    def compute_loss(tuned_lens_params, layer_activations, target_log_probs, layer_keys):
         """Compute KL divergence loss for all layers."""
         # Update tuned lens with current params
         tuned_lens.update(tuned_lens_params)
 
         total_loss = mx.array(0.0)
-        seq_len = input_tokens.shape[1]
+        valid_layers = 0
 
-        for layer_idx in range(num_layers):
-            layer_key = find_layer_key_pattern(layer_activations, layer_idx)
+        for layer_idx, layer_key in layer_keys.items():
             if layer_key is None:
                 continue
 
@@ -322,31 +350,19 @@ def train_tuned_lens(
 
             # Compute logits through output projection
             if is_weight_tied:
-                # Weight-tied: use embedding weights transposed
-                if hasattr(proj_module, "scales"):
-                    # Quantized
-                    embed_weights = mx.dequantize(
-                        proj_module.weight,
-                        proj_module.scales,
-                        proj_module.biases,
-                        proj_module.group_size,
-                        proj_module.bits,
-                    )
-                else:
-                    embed_weights = proj_module.weight
                 pred_logits = translated @ embed_weights.T
             else:
                 pred_logits = proj_module(translated)
 
             # Compute log probabilities
             pred_log_probs = log_softmax(pred_logits, axis=-1)
-            target_log_probs = log_softmax(target_logits, axis=-1)
 
-            # KL divergence loss
+            # KL divergence loss (target_log_probs already computed once per step)
             layer_loss = kl_divergence(target_log_probs, pred_log_probs)
             total_loss = total_loss + layer_loss
+            valid_layers += 1
 
-        return total_loss / num_layers
+        return total_loss / max(valid_layers, 1)
 
     # Training iterations
     while step < num_steps:
@@ -357,51 +373,72 @@ def train_tuned_lens(
         if len(chunk_tokens) < 10:
             # Wrap around if we've reached the end
             text_position = 0
+            # Prevent infinite loop if max_seq_len is too small
+            if max_seq_len < 10:
+                raise ValueError(
+                    f"max_seq_len ({max_seq_len}) is too small. Must be at least 10 tokens."
+                )
             continue
 
         input_tokens = mx.array([chunk_tokens])
 
-        # Run forward pass to get activations and target logits
+        # Run forward pass to get activations (single forward pass)
         with model.trace(input_tokens) as trace:
             pass
 
-        # Get target logits from final output
-        # We need to get the model's actual output logits
-        try:
-            # Run model directly to get final logits
+        # Cache layer keys for this step (compute once, reuse in loss function)
+        layer_keys = {
+            layer_idx: find_layer_key_pattern(trace.activations, layer_idx)
+            for layer_idx in range(num_layers)
+        }
+
+        # Warn on first step if no valid layer keys found (training won't be effective)
+        if step == 0:
+            valid_key_count = sum(1 for k in layer_keys.values() if k is not None)
+            if valid_key_count == 0:
+                warnings.warn(
+                    "No valid layer activation keys found in trace. "
+                    "Training may not be effective. Check that the model's layer structure "
+                    "matches the expected patterns (e.g., 'model.layers.X' or 'layers.X')."
+                )
+
+        # Get target logits - prefer reusing trace output to avoid second forward pass
+        target_logits = None
+
+        # Try to get from cached model output first
+        if '__model_output__' in trace.activations:
+            target_logits = trace.activations['__model_output__']
+            # Handle tuple outputs (logits, cache) from some models
+            if isinstance(target_logits, tuple):
+                target_logits = target_logits[0]
+
+        # Fallback: compute from last layer hidden state
+        if target_logits is None:
+            last_layer_key = layer_keys.get(num_layers - 1)
+            if last_layer_key and last_layer_key in trace.activations:
+                last_hidden = trace.activations[last_layer_key]
+                if final_norm is not None:
+                    last_hidden = final_norm(last_hidden)
+                if is_weight_tied:
+                    target_logits = last_hidden @ embed_weights.T
+                else:
+                    target_logits = proj_module(last_hidden)
+
+        # Last resort: run model directly (slower but reliable)
+        if target_logits is None:
             if hasattr(model.model, '__call__'):
                 target_logits = model.model(input_tokens)
                 if isinstance(target_logits, tuple):
                     target_logits = target_logits[0]
             else:
-                # Fallback: compute from last layer
-                last_layer_key = find_layer_key_pattern(trace.activations, num_layers - 1)
-                if last_layer_key:
-                    last_hidden = trace.activations[last_layer_key]
-                    if final_norm is not None:
-                        last_hidden = final_norm(last_hidden)
-                    if is_weight_tied:
-                        if hasattr(proj_module, "scales"):
-                            embed_weights = mx.dequantize(
-                                proj_module.weight,
-                                proj_module.scales,
-                                proj_module.biases,
-                                proj_module.group_size,
-                                proj_module.bits,
-                            )
-                        else:
-                            embed_weights = proj_module.weight
-                        target_logits = last_hidden @ embed_weights.T
-                    else:
-                        target_logits = proj_module(last_hidden)
-                else:
-                    raise ValueError("Could not get target logits")
-        except Exception as e:
-            raise ValueError(f"Error computing target logits: {e}")
+                raise ValueError("Could not get target logits from trace or model")
+
+        # Compute target_log_probs once per step (not inside loss function)
+        target_log_probs = log_softmax(target_logits, axis=-1)
 
         # Compute loss and gradients
         loss_fn = lambda params: compute_loss(
-            params, input_tokens, trace.activations, target_logits
+            params, trace.activations, target_log_probs, layer_keys
         )
         loss, grads = mx.value_and_grad(loss_fn)(tuned_lens.parameters())
 
