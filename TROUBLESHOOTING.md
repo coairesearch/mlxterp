@@ -1,5 +1,42 @@
 # mlxterp Troubleshooting Guide
 
+## Model Loading Issues
+
+### "Could not load model" or "Repository Not Found" (404 Error)
+
+**Symptoms:**
+- Error message: `Repository Not Found for url: https://huggingface.co/...`
+- Model loading fails with 404 error
+
+**Cause:** MLX Community models on Hugging Face require a quantization suffix. The base model name (e.g., `Llama-3.2-1B-Instruct`) doesn't exist - only quantized variants exist.
+
+**Solution:**
+
+```python
+# WRONG - This doesn't exist!
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+
+# CORRECT - Use a quantization suffix
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")   # 4-bit quantized (smallest)
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-8bit")   # 8-bit quantized
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-bf16")   # bfloat16 (largest)
+```
+
+**Finding available models:**
+1. Visit [MLX Community on Hugging Face](https://huggingface.co/mlx-community)
+2. Search for your model (e.g., "Llama-3.2")
+3. Look for variants with suffixes: `-4bit`, `-8bit`, `-bf16`
+
+**Common model names:**
+| Base Model | MLX Community Name |
+|------------|-------------------|
+| Llama-3.2-1B-Instruct | `mlx-community/Llama-3.2-1B-Instruct-4bit` |
+| Llama-3.2-3B-Instruct | `mlx-community/Llama-3.2-3B-Instruct-4bit` |
+| Mistral-7B-Instruct-v0.3 | `mlx-community/Mistral-7B-Instruct-v0.3-4bit` |
+| Qwen2.5-7B-Instruct | `mlx-community/Qwen2.5-7B-Instruct-4bit` |
+
+---
+
 ## SAE Training Issues
 
 ### Slow Training Speed (< 10 it/s)

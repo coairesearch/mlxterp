@@ -87,7 +87,7 @@ Let's first understand the logit lens by implementing it manually.
 from mlxterp import InterpretableModel
 
 # Load a model (any MLX-compatible model works)
-model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 print(f"Model loaded with {len(model.layers)} layers")
 ```

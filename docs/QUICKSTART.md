@@ -75,7 +75,8 @@ python test_mlxterp.py
 from mlxterp import InterpretableModel
 
 # Automatically loads model and tokenizer
-model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+# Note: MLX models require a quantization suffix (e.g., -4bit, -8bit, -bf16)
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 # Use with text (use self_attn for mlx-lm models)
 with model.trace("Hello world"):
@@ -182,6 +183,23 @@ with model.trace("The capital of Spain is",
 4. **Read the [Architecture Guide](architecture.md)** to understand the design
 
 ## Troubleshooting
+
+### "Could not load model" or "Repository Not Found"
+
+**Problem:** Model loading fails with 404 error.
+
+**Solution:** MLX Community models require a quantization suffix:
+```python
+# WRONG - base model name doesn't exist
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+
+# CORRECT - use quantization suffix
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")   # 4-bit quantized
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-8bit")   # 8-bit quantized
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-bf16")   # bfloat16
+```
+
+Available quantization options vary by model. Check [MLX Community](https://huggingface.co/mlx-community) for available variants.
 
 ### "String input provided but no tokenizer available"
 

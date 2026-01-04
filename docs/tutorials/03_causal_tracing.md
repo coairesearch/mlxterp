@@ -70,7 +70,7 @@ Let's first understand causal tracing by implementing it manually.
 from mlxterp import InterpretableModel
 from mlxterp import interventions as iv
 
-model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 # Factual prompt: The model should complete with "Paris"
 clean_text = "The Eiffel Tower is located in the city of"
@@ -278,7 +278,92 @@ The paper emphasizes that patching at the **subject's last token** is most effec
 
 ---
 
-## Part 4: Multiple Factual Prompts
+## Part 4: Paper-Accurate Methodology
+
+The script tutorial includes paper-accurate experiments (6-8) that implement the full ROME methodology.
+
+### Gaussian Noise Corruption
+
+The paper corrupts inputs by adding Gaussian noise to subject token embeddings:
+
+```python
+def add_gaussian_noise_to_embedding(model, tokens, noise_std=0.3, subject_range=None):
+    """Add Gaussian noise to token embeddings (paper's corruption method)."""
+    embed_layer = model._module_resolver.get_embedding_layer()
+
+    # Get embeddings (handle quantized models)
+    if hasattr(embed_layer, 'scales'):
+        embeddings = mx.dequantize(...)
+    else:
+        embeddings = embed_layer(tokens)
+
+    # Add noise only to subject positions
+    noise = mx.random.normal(embeddings.shape) * noise_std
+    if subject_range:
+        # Mask noise to only affect subject tokens
+        ...
+    return embeddings + noise
+```
+
+### Position-Specific Patching
+
+The paper patches at the subject's **last token position**, not the entire sequence:
+
+```python
+def position_patch(x, clean_activation, subject_last_pos):
+    """Patch only at the subject's last position."""
+    result = x.copy()
+    result = result.at[0, subject_last_pos, :].set(
+        clean_activation[0, subject_last_pos, :]
+    )
+    return result
+
+# Use as intervention
+with model.trace(corrupted_text,
+                 interventions={"layers.8.mlp": position_patch}):
+    output = model.output.save()
+```
+
+### Target-Token Probability Recovery
+
+The paper measures recovery using target token probability:
+
+```python
+def get_target_token_probability(logits, target_token_id):
+    """Get P(target_token) from logits."""
+    probs = mx.softmax(logits[0, -1, :])
+    return float(probs[target_token_id])
+
+# Recovery metric
+recovery = (patched_prob - corrupted_prob) / (clean_prob - corrupted_prob) * 100
+```
+
+### Statistical Averaging
+
+Average results over multiple factual prompts for robustness:
+
+```python
+factual_prompts = [
+    ("The Eiffel Tower is in", "The Statue of Liberty is in"),
+    ("The capital of France is", "The capital of Germany is"),
+    # ... more prompts
+]
+
+layer_recoveries = {i: [] for i in range(n_layers)}
+for clean, corrupted in factual_prompts:
+    results = model.activation_patching(clean, corrupted, "mlp")
+    for layer, recovery in results.items():
+        layer_recoveries[layer].append(recovery)
+
+# Compute mean and std for each layer
+for layer in layer_recoveries:
+    mean = sum(layer_recoveries[layer]) / len(layer_recoveries[layer])
+    print(f"Layer {layer}: {mean:.1f}% mean recovery")
+```
+
+---
+
+## Part 5: Multiple Factual Prompts
 
 Test across different types of factual knowledge:
 
@@ -311,7 +396,7 @@ for clean, corrupted, expected in test_cases:
 
 ---
 
-## Part 5: Exercises
+## Part 6: Exercises
 
 ### Exercise 1: Layer Output Patching
 
@@ -383,20 +468,29 @@ In this tutorial, you learned:
 2. **Key finding**: Factual knowledge is stored in MLPs at middle layers
 3. **Using mlxterp**: The `activation_patching()` method automates causal tracing
 4. **Model comparison**: MLPs generally contribute more than attention for factual recall
+5. **Paper-accurate methodology**: Gaussian noise corruption, position-specific patching, probability recovery
 
 ---
 
-## Limitations and Caveats
+## Implementation Approaches
 
-!!! warning "Differences from Paper"
-    Our implementation simplifies the original paper's methodology:
+The tutorial provides two approaches:
 
-    - **Corruption method**: Paper uses Gaussian noise on embeddings; we use subject substitution
-    - **Position specificity**: Paper patches at subject's last token; we patch entire sequence
-    - **Recovery metric**: Paper measures target-token probability restoration; we use L2 distance on logits
-    - **Statistical validation**: Paper averages over many examples; demos use single examples
+### Simplified (Parts 1-3, 5)
+- Subject substitution corruption (easier to understand)
+- Full-sequence patching
+- L2 distance metric
+- Good for learning the concepts
 
-    For rigorous scientific conclusions, implement the full paper methodology.
+### Paper-Accurate (Part 4, Experiments 6-8 in script)
+- Gaussian noise on subject embeddings
+- Position-specific patching at subject's last token
+- Target-token probability recovery metric
+- Statistical averaging over multiple prompts
+- More faithful to Meng et al. (2022)
+
+!!! note "Which to Use"
+    Use the simplified approach for learning and quick experiments. Use the paper-accurate approach for reproducing paper results or rigorous analysis.
 
 ---
 

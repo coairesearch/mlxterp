@@ -63,7 +63,7 @@ If you have pre-trained tuned lens weights:
 ```python
 from mlxterp import InterpretableModel
 
-model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 # Load pre-trained tuned lens
 tuned_lens = model.load_tuned_lens("path/to/tuned_lens")
@@ -76,7 +76,7 @@ To train your own tuned lens:
 ```python
 from mlxterp import InterpretableModel
 
-model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 # Prepare training data - needs enough text to exceed max_seq_len when tokenized
 # Rule of thumb: total tokens > max_seq_len (e.g., ~500+ words for max_seq_len=512)
@@ -195,7 +195,7 @@ The paper's Figure 2 shows that tuned lens predictions are more accurate than lo
 ```python
 from mlxterp import InterpretableModel
 
-model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 # Train or load tuned lens
 tuned_lens = model.load_tuned_lens("my_tuned_lens")  # Or train fresh

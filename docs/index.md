@@ -18,8 +18,8 @@ A clean, intuitive library for mechanistic interpretability research on Apple Si
 from mlxterp import InterpretableModel
 import mlx.core as mx
 
-# Load any MLX model
-model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+# Load any MLX model (use quantization suffix: -4bit, -8bit, or -bf16)
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 # Trace execution and capture activations
 with model.trace("The capital of France is"):

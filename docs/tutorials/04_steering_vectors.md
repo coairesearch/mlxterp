@@ -66,7 +66,7 @@ import mlx.core as mx
 ### Step 1: Define Contrastive Prompts
 
 ```python
-model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct")
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
 
 # Contrastive examples for sentiment steering
 positive_prompts = [
