@@ -474,23 +474,108 @@ In this tutorial, you learned:
 
 ## Implementation Approaches
 
-The tutorial provides two approaches:
+The tutorial provides two corruption methods with important differences:
 
-### Simplified (Parts 1-3, 5)
-- Subject substitution corruption (easier to understand)
-- Full-sequence patching
-- L2 distance metric
+### Subject Substitution (Simplified)
+
+Replace the subject entity with a different one:
+
+| Type | Prompt | Prediction |
+|------|--------|------------|
+| Clean | "The **Eiffel Tower** is located in" | Paris |
+| Corrupted | "The **Louvre Museum** is located in" | Paris/Lyon |
+
+**Characteristics:**
+- Creates a semantically meaningful corrupted input
+- The model processes a valid sentence about a different entity
+- **Middle-layer peaks correctly observed** (layers 14-17 for GPT-2 XL)
 - Good for learning the concepts
 
-### Paper-Accurate (Part 4, Experiments 6-8 in script)
-- Gaussian noise on subject embeddings
-- Position-specific patching at subject's last token
-- Target-token probability recovery metric
-- Statistical averaging over multiple prompts
-- More faithful to Meng et al. (2022)
+**Results with GPT-2 XL (48 layers):**
+```
+Most important MLP layers:
+  Layer 16:   14.4%
+  Layer 15:   12.5%
+  Layer 14:   11.4%
+  Layer 17:   10.5%
+```
 
-!!! note "Which to Use"
-    Use the simplified approach for learning and quick experiments. Use the paper-accurate approach for reproducing paper results or rigorous analysis.
+### Gaussian Noise (Paper Method)
+
+Add noise to subject token embeddings:
+
+```python
+noisy_embeddings = embeddings + noise * 0.13  # ~3x embedding std
+```
+
+**Characteristics:**
+- Creates nonsense embeddings at subject positions
+- Very aggressive corruption (often 99%+ probability drop)
+- Early-layer peaks observed (layer 0 dominates)
+- More faithful to paper but harder to reproduce middle-layer peaks
+
+**Why the difference?**
+
+| Aspect | Subject Substitution | Gaussian Noise |
+|--------|---------------------|----------------|
+| Corruption strength | Moderate | Very aggressive |
+| Semantic validity | Valid sentence | Nonsense embeddings |
+| Layer distribution | Middle-layer peak | Early-layer peak |
+| Best for | Learning & demos | Paper reproduction |
+
+!!! info "Key Insight"
+    Subject substitution shows the paper's expected middle-layer peaks because:
+
+    1. The corruption is **semantically meaningful** - the model understands "Louvre Museum"
+    2. The model's factual recall mechanism is **cleanly disrupted**
+    3. Patching middle-layer MLPs **restores the correct association**
+
+    Gaussian noise is so aggressive that only early-layer patching helps before the signal is completely destroyed.
+
+### What Can Be Patched?
+
+mlxterp can patch any module in the model:
+
+| Key Pattern | What It Is | Use Case |
+|-------------|------------|----------|
+| `h.N` or `layers.N` | **Residual stream** (full layer output) | Paper's method |
+| `h.N.mlp` | MLP output only | Component analysis |
+| `h.N.attn` | Attention output only | Component analysis |
+| `h.N.ln_1` | LayerNorm output | Fine-grained analysis |
+
+```python
+# Check all available activation keys
+with model.trace("Hello world") as trace:
+    pass
+
+for key in sorted(trace.activations.keys())[:10]:
+    print(f"  {key}: {trace.activations[key].shape}")
+```
+
+### Position-Specific Patching
+
+The library supports patching at specific token positions using custom interventions:
+
+```python
+def replace_at_position(clean_activation, position):
+    """Patch only at a specific token position."""
+    def _replace(x):
+        seq_len = x.shape[1]
+        positions = mx.arange(seq_len)
+        mask = (positions == position).reshape(1, seq_len, 1).astype(x.dtype)
+        return x * (1 - mask) + clean_activation * mask
+    return _replace
+
+# Use with intervention
+with model.trace(corrupted_text,
+                 interventions={"h.24": replace_at_position(clean_layer, 4)}):
+    output = model.output.save()
+```
+
+!!! note "Which Approach to Use"
+    - **Learning the concepts**: Use subject substitution - it clearly shows middle-layer peaks
+    - **MLP vs Attention analysis**: Both methods work well
+    - **Paper reproduction**: Use Gaussian noise with careful calibration and statistical averaging
 
 ---
 
