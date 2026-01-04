@@ -699,6 +699,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#could-not-load-model-or-repository-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        "Could not load model" or "Repository Not Found"
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#string-input-provided-but-no-tokenizer-available" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1749,6 +1760,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#could-not-load-model-or-repository-not-found" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        "Could not load model" or "Repository Not Found"
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#string-input-provided-but-no-tokenizer-available" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1891,11 +1913,12 @@
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">mlxterp</span><span class="w"> </span><span class="kn">import</span> <span class="n">InterpretableModel</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># Automatically loads model and tokenizer</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="s2">&quot;mlx-community/Llama-3.2-1B-Instruct&quot;</span><span class="p">)</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># Use with text (use self_attn for mlx-lm models)</span>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">with</span> <span class="n">model</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="s2">&quot;Hello world&quot;</span><span class="p">):</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">attn</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">self_attn</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Note: MLX models require a quantization suffix (e.g., -4bit, -8bit, -bf16)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="s2">&quot;mlx-community/Llama-3.2-1B-Instruct-4bit&quot;</span><span class="p">)</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Use with text (use self_attn for mlx-lm models)</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="k">with</span> <span class="n">model</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="s2">&quot;Hello world&quot;</span><span class="p">):</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">attn</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">layers</span><span class="p">[</span><span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">self_attn</span><span class="o">.</span><span class="n">output</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
 </span></code></pre></div>
 <h3 id="2-work-with-tokenizers">2. Work with Tokenizers<a class="headerlink" href="#2-work-with-tokenizers" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Encode text to tokens</span>
@@ -1981,28 +2004,40 @@
 <li><strong>Read the <a href="../architecture/">Architecture Guide</a></strong> to understand the design</li>
 </ol>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
+<h3 id="could-not-load-model-or-repository-not-found">"Could not load model" or "Repository Not Found"<a class="headerlink" href="#could-not-load-model-or-repository-not-found" title="Permanent link">&para;</a></h3>
+<p><strong>Problem:</strong> Model loading fails with 404 error.</p>
+<p><strong>Solution:</strong> MLX Community models require a quantization suffix:
+<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># WRONG - base model name doesn&#39;t exist</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="s2">&quot;mlx-community/Llama-3.2-1B-Instruct&quot;</span><span class="p">)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># CORRECT - use quantization suffix</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="s2">&quot;mlx-community/Llama-3.2-1B-Instruct-4bit&quot;</span><span class="p">)</span>   <span class="c1"># 4-bit quantized</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="s2">&quot;mlx-community/Llama-3.2-1B-Instruct-8bit&quot;</span><span class="p">)</span>   <span class="c1"># 8-bit quantized</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="s2">&quot;mlx-community/Llama-3.2-1B-Instruct-bf16&quot;</span><span class="p">)</span>   <span class="c1"># bfloat16</span>
+</span></code></pre></div></p>
+<p>Available quantization options vary by model. Check <a href="https://huggingface.co/mlx-community">MLX Community</a> for available variants.</p>
 <h3 id="string-input-provided-but-no-tokenizer-available">"String input provided but no tokenizer available"<a class="headerlink" href="#string-input-provided-but-no-tokenizer-available" title="Permanent link">&para;</a></h3>
 <p><strong>Problem:</strong> You're passing text but no tokenizer was loaded.</p>
 <p><strong>Solution:</strong> Pass a tokenizer or use token arrays:
-<div class="language-python highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">AutoTokenizer</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">AutoTokenizer</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="s2">&quot;model-name&quot;</span><span class="p">)</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="n">base_model</span><span class="p">,</span> <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">AutoTokenizer</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="n">tokenizer</span> <span class="o">=</span> <span class="n">AutoTokenizer</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="s2">&quot;model-name&quot;</span><span class="p">)</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="n">base_model</span><span class="p">,</span> <span class="n">tokenizer</span><span class="o">=</span><span class="n">tokenizer</span><span class="p">)</span>
 </span></code></pre></div></p>
 <h3 id="model-does-not-have-layers-attribute">"Model does not have 'layers' attribute"<a class="headerlink" href="#model-does-not-have-layers-attribute" title="Permanent link">&para;</a></h3>
 <p><strong>Problem:</strong> Your model uses a different attribute name.</p>
 <p><strong>Solution:</strong> Specify the correct attribute:
-<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># For GPT-2</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="n">gpt2_model</span><span class="p">,</span> <span class="n">layer_attr</span><span class="o">=</span><span class="s2">&quot;h&quot;</span><span class="p">)</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># For custom models</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="n">custom_model</span><span class="p">,</span> <span class="n">layer_attr</span><span class="o">=</span><span class="s2">&quot;transformer.blocks&quot;</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># For GPT-2</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="n">gpt2_model</span><span class="p">,</span> <span class="n">layer_attr</span><span class="o">=</span><span class="s2">&quot;h&quot;</span><span class="p">)</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># For custom models</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="n">custom_model</span><span class="p">,</span> <span class="n">layer_attr</span><span class="o">=</span><span class="s2">&quot;transformer.blocks&quot;</span><span class="p">)</span>
 </span></code></pre></div></p>
 <h3 id="import-error">Import Error<a class="headerlink" href="#import-error" title="Permanent link">&para;</a></h3>
 <p><strong>Problem:</strong> <code>ModuleNotFoundError: No module named 'mlxterp'</code></p>
 <p><strong>Solution:</strong> Install the package:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>mlxterp
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nb">cd</span><span class="w"> </span>mlxterp
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </span></code></pre></div></p>
 <h2 id="community-support">Community &amp; Support<a class="headerlink" href="#community-support" title="Permanent link">&para;</a></h2>
 <ul>
