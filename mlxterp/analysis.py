@@ -840,34 +840,51 @@ class AnalysisMixin:
             print(f"  Layer {layer_idx:2d}...", end="\r")
 
             # Build component key - try multiple path patterns for different model types
+            # Supports: Llama/Mistral (layers.X), GPT-2 (h.X), and others
+
+            # Map component names for different architectures
+            # GPT-2 uses "attn" instead of "self_attn"
+            component_variants = [component]
+            if component == "self_attn":
+                component_variants.append("attn")  # GPT-2 style
+            elif component == "attn":
+                component_variants.append("self_attn")  # Llama style
+
             # Special handling for "output" component - refers to the layer itself
             if component == "output":
                 # "output" means the layer's output, which is stored under the layer name
                 path_patterns = [
-                    f"model.model.layers.{layer_idx}",   # mlx-lm models
+                    f"model.model.layers.{layer_idx}",   # mlx-lm Llama models
                     f"model.layers.{layer_idx}",         # models with .model wrapper
                     f"layers.{layer_idx}",               # direct layers
+                    f"model.model.h.{layer_idx}",        # GPT-2 style
+                    f"model.h.{layer_idx}",              # GPT-2 without double model
+                    f"h.{layer_idx}",                    # Direct GPT-2
                 ]
             elif "." in component:
                 # Full path provided (e.g., "mlp.gate_proj")
-                component_suffix = component
-                path_patterns = [
-                    f"model.model.layers.{layer_idx}.{component_suffix}",  # mlx-lm models
-                    f"model.layers.{layer_idx}.{component_suffix}",        # models with .model wrapper
-                    f"layers.{layer_idx}.{component_suffix}",              # direct layers
-                    f"model.layers.{layer_idx}",                           # layer without component (for custom models)
-                    f"layers.{layer_idx}",                                 # simplest path
-                ]
+                path_patterns = []
+                for comp in component_variants:
+                    path_patterns.extend([
+                        f"model.model.layers.{layer_idx}.{comp}",  # mlx-lm Llama models
+                        f"model.layers.{layer_idx}.{comp}",        # models with .model wrapper
+                        f"layers.{layer_idx}.{comp}",              # direct layers
+                        f"model.model.h.{layer_idx}.{comp}",       # GPT-2 style
+                        f"model.h.{layer_idx}.{comp}",             # GPT-2 without double model
+                        f"h.{layer_idx}.{comp}",                   # Direct GPT-2
+                    ])
             else:
-                # Simple component name (e.g., "mlp", "self_attn")
-                component_suffix = component
-                path_patterns = [
-                    f"model.model.layers.{layer_idx}.{component_suffix}",  # mlx-lm models
-                    f"model.layers.{layer_idx}.{component_suffix}",        # models with .model wrapper
-                    f"layers.{layer_idx}.{component_suffix}",              # direct layers
-                    f"model.layers.{layer_idx}",                           # layer without component (for custom models)
-                    f"layers.{layer_idx}",                                 # simplest path
-                ]
+                # Simple component name (e.g., "mlp", "self_attn", "attn")
+                path_patterns = []
+                for comp in component_variants:
+                    path_patterns.extend([
+                        f"model.model.layers.{layer_idx}.{comp}",  # mlx-lm Llama models
+                        f"model.layers.{layer_idx}.{comp}",        # models with .model wrapper
+                        f"layers.{layer_idx}.{comp}",              # direct layers
+                        f"model.model.h.{layer_idx}.{comp}",       # GPT-2 style
+                        f"model.h.{layer_idx}.{comp}",             # GPT-2 without double model
+                        f"h.{layer_idx}.{comp}",                   # Direct GPT-2
+                    ])
 
             # Get clean activation - find which path works
             activation_key = None

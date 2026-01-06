@@ -34,7 +34,9 @@ class ModuleResolver:
         "model.model.embed_tokens", # mlx-lm double-wrapped
         "embed_tokens",             # direct
         "tok_embeddings",           # some Llama implementations
-        "wte",                      # GPT-2 style
+        "wte",                      # GPT-2 style (direct)
+        "model.wte",                # GPT-2 single-wrapped
+        "model.model.wte",          # GPT-2 double-wrapped
         "embeddings.word_embeddings", # BERT style
         "transformer.wte",          # GPT with transformer wrapper
     ]
@@ -301,6 +303,10 @@ def find_layer_key_pattern(
     """
     Find the correct activation key pattern for a layer.
 
+    Supports multiple architectures:
+    - Llama/Mistral style: layers.{idx}
+    - GPT-2 style: h.{idx}
+
     Uses two strategies:
     1. Try common patterns directly
     2. Normalize all keys and match on suffix (for deeply nested wrappers)
@@ -308,19 +314,24 @@ def find_layer_key_pattern(
     Args:
         activations: Dict of activation keys
         layer_idx: Layer index to find
-        component: Optional component suffix (e.g., "self_attn")
+        component: Optional component suffix (e.g., "self_attn", "mlp", "attn")
 
     Returns:
         The matching key, or None if not found
     """
     suffix = f".{component}" if component else ""
-    target_suffix = f"layers.{layer_idx}{suffix}"
 
     # Strategy 1: Try common patterns directly
+    # Include both Llama-style (layers.X) and GPT-2 style (h.X)
     patterns = [
+        # Llama/Mistral style
         f"model.model.layers.{layer_idx}{suffix}",  # mlx-lm double-wrapped
         f"model.layers.{layer_idx}{suffix}",        # mlx-lm single-wrapped
         f"layers.{layer_idx}{suffix}",              # direct
+        # GPT-2 style
+        f"model.model.h.{layer_idx}{suffix}",       # GPT-2 double-wrapped
+        f"model.h.{layer_idx}{suffix}",             # GPT-2 single-wrapped
+        f"h.{layer_idx}{suffix}",                   # GPT-2 direct
     ]
 
     for pattern in patterns:
@@ -329,12 +340,18 @@ def find_layer_key_pattern(
 
     # Strategy 2: Normalize keys and match on suffix
     # This handles deeply nested wrappers (model.model.model.layers.0, etc.)
+    target_suffixes = [
+        f"layers.{layer_idx}{suffix}",  # Llama-style
+        f"h.{layer_idx}{suffix}",       # GPT-2 style
+    ]
+
     for key in activations:
         normalized = normalize_layer_key(key)
-        if normalized == target_suffix:
-            return key
-        # Also try matching on suffix directly
-        if key.endswith(target_suffix):
-            return key
+        for target_suffix in target_suffixes:
+            if normalized == target_suffix:
+                return key
+            # Also try matching on suffix directly
+            if key.endswith(target_suffix):
+                return key
 
     return None

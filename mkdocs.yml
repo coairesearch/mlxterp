@@ -83,6 +83,14 @@ nav:
   - User Guide:
       - Examples: examples.md
       - API Reference: API.md
+  - Tutorials (Paper Reproductions):
+      - Overview: tutorials/index.md
+      - "1. Logit Lens": tutorials/01_logit_lens.md
+      - "2. Tuned Lens": tutorials/02_tuned_lens.md
+      - "3. Causal Tracing (ROME)": tutorials/03_causal_tracing.md
+      - "4. Steering Vectors (CAA)": tutorials/04_steering_vectors.md
+      - "5. Induction Heads": tutorials/05_induction_heads.md
+      - "6. Sparse Autoencoders": tutorials/06_sparse_autoencoders.md
   - Guides & Procedures:
       - Activation Patching: guides/activation_patching.md
       - Dictionary Learning: guides/dictionary_learning.md

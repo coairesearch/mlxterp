@@ -255,29 +255,19 @@ def train_tuned_lens(
     # Get model dimensions
     num_layers = len(model.layers)
 
-    # Get hidden dimension from model
-    # Try to infer from first layer's weight matrix or embedding
+    # Get hidden dimension from model by running a trace (most reliable method)
     try:
-        # Try to get from embedding layer
-        embed_layer = model._module_resolver.get_embedding_layer()
-        if hasattr(embed_layer, "weight"):
-            hidden_dim = embed_layer.weight.shape[1]
-        elif hasattr(embed_layer, "scales"):
-            # Quantized embedding
-            hidden_dim = embed_layer.scales.shape[0]
+        # Find first non-empty text
+        sample_text = next((t for t in dataset if t.strip()), dataset[0])
+        sample_tokens = model.encode(sample_text[:100])
+        with model.trace(mx.array([sample_tokens[:10]])) as trace:
+            pass
+        # Get dimension from first layer output
+        layer_key = find_layer_key_pattern(trace.activations, 0)
+        if layer_key:
+            hidden_dim = trace.activations[layer_key].shape[-1]
         else:
-            # Fallback: try to get from a trace
-            # Find first non-empty text
-            sample_text = next((t for t in dataset if t.strip()), dataset[0])
-            sample_tokens = model.encode(sample_text[:100])
-            with model.trace(mx.array([sample_tokens[:10]])) as trace:
-                pass
-            # Get dimension from first layer output
-            layer_key = find_layer_key_pattern(trace.activations, 0)
-            if layer_key:
-                hidden_dim = trace.activations[layer_key].shape[-1]
-            else:
-                raise ValueError("Could not determine hidden dimension from model")
+            raise ValueError("Could not determine hidden dimension from model activations")
     except Exception as e:
         raise ValueError(f"Could not determine model hidden dimension: {e}")
 

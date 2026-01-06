@@ -25,9 +25,9 @@ Before selecting papers, here's what mlxterp currently supports:
 
 ## Recommended Papers for Tutorials
 
-### Paper 1: The Logit Lens (Beginner)
+### Paper 1: The Logit Lens (Beginner) and Tuned Lens
 
-**Original Work:** [interpreting GPT: the logit lens](https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens) by nostalgebraist (2020)
+**Original Work:** [interpreting GPT: the logit lens](https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens) by nostalgebraist (2020) 
 
 **Why This Paper:**
 - **Simplicity:** Conceptually straightforward - just project intermediate layers through the unembedding matrix
