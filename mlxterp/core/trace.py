@@ -4,11 +4,90 @@ Tracing context manager for capturing model execution.
 Provides the clean context manager API:
     with model.trace("input text"):
         output = model.layers[3].self_attn.output.save()
+
+Attention weights are captured automatically and stored at:
+    trace.activations['{layer_name}.attention_weights']
+
+Shape: (batch, num_heads, seq_len, seq_len)
 """
 
 import mlx.core as mx
 from typing import Dict, Any, Optional, Callable, Union
 from .proxy import TraceContext
+
+
+def _is_attention_module(module) -> bool:
+    """
+    Check if a module is an attention module that we should capture weights from.
+
+    Uses interface-based detection: checks for q_proj, k_proj, n_heads, head_dim
+    which are common across attention implementations.
+    """
+    # Interface-based detection - more robust than name matching
+    required_attrs = ['q_proj', 'k_proj', 'n_heads', 'head_dim']
+    has_required = all(hasattr(module, attr) for attr in required_attrs)
+
+    if has_required:
+        return True
+
+    # Fallback to name-based detection for edge cases
+    module_type = type(module).__name__
+    attention_names = {
+        'Attention', 'SelfAttention', 'MultiHeadAttention', 'MHA',
+        'MultiheadAttention', 'LlamaAttention', 'CausalSelfAttention',
+        'GptNeoXAttention', 'MistralAttention', 'Qwen2Attention',
+    }
+    return module_type in attention_names
+
+
+def _compute_attention_weights(
+    queries: mx.array,
+    keys: mx.array,
+    scale: float,
+    mask: Optional[mx.array] = None,
+) -> mx.array:
+    """
+    Compute attention weights from queries and keys.
+
+    Args:
+        queries: Shape (batch, num_heads, seq_len, head_dim)
+        keys: Shape (batch, num_kv_heads, seq_len, head_dim)
+        scale: Scaling factor (usually 1/sqrt(head_dim))
+        mask: Optional attention mask
+
+    Returns:
+        Attention weights of shape (batch, num_heads, seq_len, seq_len)
+    """
+    # Handle grouped query attention (GQA) by repeating keys
+    num_heads = queries.shape[1]
+    num_kv_heads = keys.shape[1]
+
+    if num_kv_heads < num_heads:
+        # Validate GQA divisibility
+        if num_heads % num_kv_heads != 0:
+            raise ValueError(
+                f"num_heads ({num_heads}) must be divisible by num_kv_heads ({num_kv_heads})"
+            )
+        # GQA: repeat keys to match query heads
+        repeat_factor = num_heads // num_kv_heads
+        keys = mx.repeat(keys, repeat_factor, axis=1)
+    elif num_kv_heads > num_heads:
+        raise ValueError(
+            f"num_kv_heads ({num_kv_heads}) cannot be greater than num_heads ({num_heads})"
+        )
+
+    # Compute attention scores: (batch, heads, seq_q, seq_k)
+    scores = mx.matmul(queries, keys.transpose(0, 1, 3, 2)) * scale
+
+    # Apply mask if provided (for causal attention)
+    # Skip if mask is None or a string (MLX optimization flag)
+    if mask is not None and not isinstance(mask, str):
+        scores = scores + mask
+
+    # Apply softmax to get attention weights
+    weights = mx.softmax(scores, axis=-1)
+
+    return weights
 
 
 class Trace:
@@ -301,7 +380,12 @@ class Trace:
         Create a simple wrapper object that intercepts __call__ and delegates everything else.
 
         This uses composition rather than inheritance to avoid issues with MLX's complex module internals.
+
+        For attention modules, a specialized wrapper is used that also captures attention weights.
         """
+
+        # Check if this is an attention module
+        is_attention = _is_attention_module(layer)
 
         class SimpleWrapper:
             """Minimal wrapper that intercepts calls and delegates everything else"""
@@ -347,7 +431,140 @@ class Trace:
                 """Delegate dictionary setting"""
                 self._wrapped_layer[key] = value
 
-        return SimpleWrapper(layer, name)
+        class AttentionWrapper:
+            """
+            Specialized wrapper for attention modules that captures attention weights.
+
+            In addition to capturing the attention output, this wrapper computes and stores
+            the attention weights (softmax scores) which are useful for interpretability.
+
+            Attention weights are stored at: {layer_name}.attention_weights
+            Shape: (batch, num_heads, seq_len, seq_len)
+
+            Note: Attention weights are computed for full-sequence forward passes only.
+            During cached/incremental generation, weights may not reflect the full
+            attention over cached tokens. For accurate attention analysis, use
+            full-sequence tracing without cache.
+            """
+
+            def __init__(self, wrapped_layer, layer_name):
+                object.__setattr__(self, '_wrapped_layer', wrapped_layer)
+                object.__setattr__(self, '_layer_name', layer_name)
+
+            def __call__(self, x: mx.array, mask: Optional[mx.array] = None, cache: Optional[Any] = None) -> mx.array:
+                """
+                Intercept attention calls to capture both output and attention weights.
+
+                This method:
+                1. Calls original attention for correct output
+                2. Computes Q, K projections separately
+                3. Applies RoPE (if present)
+                4. Computes attention weights manually (for capture)
+                5. Stores both output and attention weights
+
+                Note: When cache is used (incremental generation), attention weights
+                only reflect attention over the current input, not cached tokens.
+                """
+                ctx = TraceContext.current()
+                attn = self._wrapped_layer
+
+                # Call the original attention to get the correct output
+                result = attn(x, mask=mask, cache=cache)
+
+                # If we're in a trace, capture activations AND attention weights
+                if ctx is not None:
+                    # Apply intervention if registered
+                    if ctx.should_intervene(self._layer_name):
+                        result = ctx.apply_intervention(self._layer_name, result)
+
+                    # Store the attention output
+                    ctx.activations[self._layer_name] = result
+
+                    # Now compute and store attention weights
+                    # Skip if cache is used - attention weights only meaningful for full sequences
+                    if cache is not None:
+                        # During cached generation, skip attention weight capture
+                        # to avoid misleading partial attention patterns
+                        return result
+
+                    try:
+                        B, L, D = x.shape
+
+                        # Get Q, K projections
+                        queries = attn.q_proj(x)
+                        keys = attn.k_proj(x)
+
+                        # Reshape to (batch, num_heads, seq_len, head_dim)
+                        n_heads = attn.n_heads
+                        n_kv_heads = attn.n_kv_heads
+                        head_dim = attn.head_dim
+
+                        queries = queries.reshape(B, L, n_heads, head_dim).transpose(0, 2, 1, 3)
+                        keys = keys.reshape(B, L, n_kv_heads, head_dim).transpose(0, 2, 1, 3)
+
+                        # Apply RoPE if present
+                        if hasattr(attn, 'rope') and attn.rope is not None:
+                            if cache is not None:
+                                queries = attn.rope(queries, offset=cache.offset)
+                                keys = attn.rope(keys, offset=cache.offset)
+                            else:
+                                queries = attn.rope(queries)
+                                keys = attn.rope(keys)
+
+                        # Create causal mask
+                        # MLX uses string "causal" as an optimization flag, we need explicit mask
+                        if mask is None or isinstance(mask, str):
+                            # Create causal mask: (1, 1, seq_len, seq_len)
+                            causal_mask = mx.triu(
+                                mx.full((L, L), float('-inf')),
+                                k=1
+                            )
+                            causal_mask = causal_mask.reshape(1, 1, L, L)
+                        else:
+                            causal_mask = mask
+
+                        # Compute attention weights
+                        scale = attn.scale if hasattr(attn, 'scale') else (head_dim ** -0.5)
+                        attention_weights = _compute_attention_weights(
+                            queries, keys, scale, causal_mask
+                        )
+
+                        # Store attention weights
+                        ctx.activations[f"{self._layer_name}.attention_weights"] = attention_weights
+
+                    except Exception as e:
+                        # If we can't compute attention weights, log a warning but don't fail
+                        import warnings
+                        warnings.warn(
+                            f"Could not compute attention weights for {self._layer_name}: {e}"
+                        )
+
+                return result
+
+            def __getattr__(self, name):
+                """Delegate all other attribute access to wrapped layer"""
+                return getattr(self._wrapped_layer, name)
+
+            def __setattr__(self, name, value):
+                """Delegate attribute setting to wrapped layer"""
+                if name in ('_wrapped_layer', '_layer_name'):
+                    object.__setattr__(self, name, value)
+                else:
+                    setattr(self._wrapped_layer, name, value)
+
+            def __getitem__(self, key):
+                """Delegate dictionary access"""
+                return self._wrapped_layer[key]
+
+            def __setitem__(self, key, value):
+                """Delegate dictionary setting"""
+                self._wrapped_layer[key] = value
+
+        # Return appropriate wrapper based on module type
+        if is_attention:
+            return AttentionWrapper(layer, name)
+        else:
+            return SimpleWrapper(layer, name)
 
     def _restore_model_layers(self):
         """Restore all patched modules to their original state"""

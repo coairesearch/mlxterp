@@ -42,6 +42,12 @@ from .utils import get_activations, batch_get_activations
 from .sae import SAE, SAEConfig, SAETrainer
 from .tuned_lens import TunedLens, train_tuned_lens
 
+# Visualization module (optional import - may fail if viz dependencies not installed)
+try:
+    from . import visualization
+except ImportError:
+    visualization = None
+
 # Create interventions namespace for cleaner imports
 class _Interventions:
     """Namespace for intervention functions"""
@@ -80,4 +86,6 @@ __all__ = [
     # Tuned Lens
     "TunedLens",
     "train_tuned_lens",
+    # Visualization
+    "visualization",
 ]
