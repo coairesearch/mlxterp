@@ -9,7 +9,7 @@ mlxterp captures attention weights during model tracing, enabling:
 - **Attention heatmaps**: Visualize which tokens attend to which
 - **Pattern detection**: Automatically identify head types (induction, previous token, etc.)
 - **Multi-head analysis**: Compare patterns across layers and heads
-- **Custom analysis**: Build your own attention-based analyses
+- **Custom analysis**: Build your own attention-based analyses with custom pattern functions
 
 ## Quick Start
 
@@ -20,6 +20,7 @@ from mlxterp.visualization import (
     attention_heatmap,
     attention_from_trace,
     detect_head_types,
+    AttentionVisualizationConfig,
 )
 
 # Load model
@@ -34,8 +35,13 @@ patterns = get_attention_patterns(trace)
 tokens = model.to_str_tokens("The cat sat on the mat")
 
 # Create visualization
-fig = attention_heatmap(patterns[5], tokens, head_idx=0)
+config = AttentionVisualizationConfig(colorscale="Blues", mask_upper_tri=True)
+fig = attention_heatmap(patterns[5], tokens, head_idx=0, config=config)
 ```
+
+![Quick Start Heatmap](../assets/images/guides/quickstart_heatmap.png)
+
+*Figure 1: Basic attention heatmap showing Layer 5, Head 0 attention pattern. The y-axis shows query positions (source tokens), while the x-axis shows key positions (target tokens). Darker blue indicates higher attention weights.*
 
 ## Extracting Attention Patterns
 
@@ -68,6 +74,10 @@ head_0 = pattern[0, 0]  # First batch, first head
 # Shape: (seq_q, seq_k) = (6, 6)
 ```
 
+![Pattern Shapes](../assets/images/guides/pattern_shapes.png)
+
+*Figure 2: Understanding attention tensor dimensions. The 4D tensor (batch, heads, seq_q, seq_k) allows access to individual attention heads for analysis.*
+
 ### Token Strings
 
 Use `to_str_tokens` to get readable token labels:
@@ -86,19 +96,31 @@ tokens = model.to_str_tokens(token_ids)
 ### Single Heatmap
 
 ```python
-from mlxterp.visualization import attention_heatmap
+from mlxterp.visualization import attention_heatmap, AttentionVisualizationConfig
+
+config = AttentionVisualizationConfig(
+    colorscale="Blues",    # Matplotlib colormap name
+    mask_upper_tri=True,   # Mask future positions (causal)
+    figsize=(8, 6)
+)
 
 fig = attention_heatmap(
     patterns[5],          # Attention from layer 5
     tokens,               # Token labels
     head_idx=0,           # Which head to show
     title="Layer 5, Head 0",
-    colorscale="Blues",   # Colormap
     backend="matplotlib", # or "plotly", "circuitsviz"
-    mask_upper_tri=True,  # Mask future positions
-    figsize=(8, 6)
+    config=config
 )
 ```
+
+### Colorscale Options
+
+Different colorscales highlight different attention patterns:
+
+![Colorscale Comparison](../assets/images/guides/colorscale_comparison.png)
+
+*Figure 3: Comparison of colorscale options. Choose based on your visualization needs: Blues for standard analysis, Reds for emphasis, viridis for perceptually uniform gradients, YlOrRd for heatmap-style displays.*
 
 ### Grid of Multiple Heads
 
@@ -122,6 +144,10 @@ fig = attention_from_trace(
 )
 ```
 
+![Attention Grid](../assets/images/guides/attention_grid_heads.png)
+
+*Figure 4: Grid visualization comparing attention patterns across layers (rows) and heads (columns). Notice how Layer 0 heads show more diffuse patterns, while Layer 4 heads show more specialized attention.*
+
 ### Visualization Backends
 
 mlxterp supports multiple backends:
@@ -141,6 +167,17 @@ config = AttentionVisualizationConfig(backend="plotly")
 ```
 
 ## Pattern Detection
+
+### Built-in Head Types
+
+mlxterp includes detectors for common attention head types discovered in mechanistic interpretability research:
+
+| Type | Description | Score Function | Typical Location |
+|------|-------------|----------------|------------------|
+| `previous_token` | Attends to position i-1 | `previous_token_score()` | Early layers |
+| `first_token` | Attends to position 0 (BOS) | `first_token_score()` | All layers |
+| `current_token` | Attends to self (diagonal) | `current_token_score()` | Various |
+| `induction` | Pattern completion (A B ... A → B) | `induction_score()` | Middle-late layers |
 
 ### Detecting Head Types
 
@@ -162,14 +199,25 @@ for head_type, heads in head_types.items():
             print(f"    L{layer}H{head}")
 ```
 
-**Head Types:**
+![Head Type Detection](../assets/images/guides/head_type_detection.png)
 
-| Type | Description | Typical Location |
-|------|-------------|------------------|
-| `previous_token` | Attends to position i-1 | Early layers |
-| `first_token` | Attends to position 0 (BOS) | All layers |
-| `current_token` | Attends to self (diagonal) | Various |
-| `induction` | Pattern completion heads | Middle-late layers |
+*Figure 5: Distribution of detected head types in Llama-3.2-1B. First token (BOS) heads dominate, which is typical for LLMs using BOS token as a "no-op" attention sink.*
+
+### Previous Token Heads
+
+Previous token heads form the foundation for induction. They appear primarily in early layers:
+
+![Previous Token Head](../assets/images/guides/previous_token_head.png)
+
+*Figure 6: Example previous token head (L0H2, score=0.75). The strong sub-diagonal pattern shows each position primarily attending to the immediately preceding token.*
+
+### First Token (BOS) Heads
+
+First token heads attend strongly to position 0 (beginning of sequence):
+
+![First Token Head](../assets/images/guides/first_token_head.png)
+
+*Figure 7: First token head (L2H20, score=0.999). The first column dominates, showing nearly all positions attend strongly to the BOS token. This acts as an attention "sink" for tokens that don't need to attend elsewhere.*
 
 ### Detecting Induction Heads
 
@@ -190,6 +238,10 @@ print(f"Found {len(induction_heads)} induction heads")
 for head in induction_heads[:5]:
     print(f"  L{head.layer}H{head.head}: {head.score:.3f}")
 ```
+
+![Induction Head Detection](../assets/images/guides/induction_head_detection.png)
+
+*Figure 8: Top induction heads in Llama-3.2-1B detected using repeated random tokens. Heads above the threshold (red line) show strong induction behavior.*
 
 ### Computing Pattern Scores
 
@@ -215,6 +267,10 @@ ind_score = induction_score(head_pattern, seq_len=5)
 print(f"Induction: {ind_score:.3f}")
 ```
 
+![Pattern Score Analysis](../assets/images/guides/pattern_score_analysis.png)
+
+*Figure 9: Pattern scores across layers. Blue bars show previous token scores, red bars show first token scores. Early layers (0) have more heads with high first-token scores, while the pattern varies in later layers.*
+
 ### Using AttentionPatternDetector
 
 For custom analysis with configurable thresholds:
@@ -238,6 +294,283 @@ types = detector.classify_head(head_pattern)
 print(f"Classification: {types}")
 ```
 
+## Custom Pattern Detection
+
+The pattern detection system is fully extensible. You can define custom patterns to detect any attention behavior you observe in your analysis.
+
+### Understanding the Pattern Detection Architecture
+
+Pattern detection in mlxterp follows a simple functional design:
+
+1. **Pattern Scoring Function**: A function that takes an attention matrix `(seq_q, seq_k)` and returns a score (0-1)
+2. **Threshold**: A cutoff value to classify heads as exhibiting the pattern
+3. **Search**: Iterate over heads and filter by threshold
+
+### Creating Custom Pattern Scores
+
+Define any pattern by writing a scoring function:
+
+```python
+import numpy as np
+
+def diagonal_score(pattern):
+    """Score for attention to self (main diagonal).
+
+    High scores indicate the head attends primarily to the current position.
+    """
+    pattern = np.array(pattern)
+    return float(np.mean(np.diag(pattern)))
+
+def anti_diagonal_score(pattern):
+    """Score for attention to positions in reverse order.
+
+    Detects heads that attend to the end of the sequence from the beginning.
+    """
+    pattern = np.array(pattern)
+    return float(np.mean(np.diag(np.fliplr(pattern))))
+
+def local_window_score(pattern, window_size=3):
+    """Score for attention within a local window.
+
+    Detects heads that focus on nearby tokens (local attention pattern).
+    """
+    pattern = np.array(pattern)
+    n = pattern.shape[0]
+    score = 0.0
+    count = 0
+    for i in range(n):
+        for j in range(max(0, i - window_size), min(n, i + 1)):
+            score += pattern[i, j]
+            count += 1
+    return score / count if count > 0 else 0.0
+
+def sparse_attention_score(pattern, sparsity_threshold=0.1):
+    """Score for sparse attention patterns.
+
+    High scores indicate the head concentrates attention on few positions.
+    """
+    pattern = np.array(pattern)
+    # Count positions with attention > threshold
+    sparse_count = np.sum(pattern > sparsity_threshold, axis=1)
+    # Lower count = more sparse = higher score
+    max_positions = pattern.shape[1]
+    sparsity = 1.0 - (np.mean(sparse_count) / max_positions)
+    return float(sparsity)
+```
+
+### Using Custom Patterns with find_attention_pattern
+
+```python
+from mlxterp.visualization.patterns import find_attention_pattern
+
+# Find all heads matching your custom pattern
+diagonal_heads = find_attention_pattern(
+    model,
+    "The quick brown fox jumps over the lazy dog",
+    pattern_fn=diagonal_score,
+    threshold=0.3
+)
+
+print(f"Found {len(diagonal_heads)} diagonal attention heads")
+for layer, head, score in diagonal_heads[:5]:
+    print(f"  L{layer}H{head}: {score:.3f}")
+```
+
+### Creating Composite Patterns
+
+Combine multiple pattern scores for complex detection:
+
+```python
+def induction_plus_previous_score(pattern, seq_len=None):
+    """Detect heads that are both induction AND previous-token heads.
+
+    This combination is characteristic of the two-step induction mechanism.
+    """
+    from mlxterp.visualization import induction_score, previous_token_score
+
+    ind_score = induction_score(pattern, seq_len=seq_len)
+    prev_score = previous_token_score(pattern)
+
+    # Both must be present - use geometric mean
+    return float(np.sqrt(ind_score * prev_score))
+
+def content_vs_position_score(pattern):
+    """Classify whether head uses content-based or position-based attention.
+
+    Returns score > 0.5 for content-based, < 0.5 for position-based.
+    Useful for understanding attention mechanisms.
+    """
+    pattern = np.array(pattern)
+
+    # Position-based: similar patterns across rows
+    row_variance = np.var(pattern, axis=0).mean()
+
+    # Content-based: different patterns across rows
+    col_variance = np.var(pattern, axis=1).mean()
+
+    # Normalize
+    total = row_variance + col_variance
+    if total < 1e-6:
+        return 0.5
+
+    return float(col_variance / total)
+```
+
+### Building a Custom Pattern Detector Class
+
+For reusable pattern detection, create a custom detector:
+
+```python
+from dataclasses import dataclass
+from typing import List, Tuple, Callable, Dict
+import numpy as np
+
+@dataclass
+class PatternMatch:
+    """Result of pattern detection."""
+    layer: int
+    head: int
+    score: float
+    pattern_name: str
+
+class CustomPatternDetector:
+    """Extensible pattern detector for attention analysis.
+
+    Add your own patterns and detect them across model heads.
+    """
+
+    def __init__(self):
+        self.patterns: Dict[str, Tuple[Callable, float]] = {}
+
+    def register_pattern(self, name: str, score_fn: Callable, threshold: float = 0.3):
+        """Register a new pattern for detection.
+
+        Args:
+            name: Human-readable pattern name
+            score_fn: Function (attention_matrix) -> float score in [0, 1]
+            threshold: Minimum score to classify as this pattern
+        """
+        self.patterns[name] = (score_fn, threshold)
+
+    def detect_all(self, model, text: str, layers: List[int] = None) -> Dict[str, List[PatternMatch]]:
+        """Detect all registered patterns across model heads.
+
+        Returns:
+            Dict mapping pattern names to lists of matching heads
+        """
+        from mlxterp.visualization import get_attention_patterns
+
+        with model.trace(text) as trace:
+            pass
+
+        patterns = get_attention_patterns(trace, layers=layers)
+
+        results = {name: [] for name in self.patterns}
+
+        for layer_idx, layer_attn in patterns.items():
+            n_heads = layer_attn.shape[1]
+            for head_idx in range(n_heads):
+                head_pattern = np.array(layer_attn[0, head_idx])
+
+                for pattern_name, (score_fn, threshold) in self.patterns.items():
+                    score = score_fn(head_pattern)
+                    if score >= threshold:
+                        results[pattern_name].append(
+                            PatternMatch(layer_idx, head_idx, score, pattern_name)
+                        )
+
+        # Sort by score descending
+        for name in results:
+            results[name].sort(key=lambda x: x.score, reverse=True)
+
+        return results
+
+# Usage example
+detector = CustomPatternDetector()
+
+# Register built-in patterns
+from mlxterp.visualization import previous_token_score, first_token_score
+detector.register_pattern("previous_token", previous_token_score, threshold=0.5)
+detector.register_pattern("first_token", first_token_score, threshold=0.3)
+
+# Register custom patterns
+detector.register_pattern("diagonal", diagonal_score, threshold=0.3)
+detector.register_pattern("local_window", local_window_score, threshold=0.4)
+detector.register_pattern("sparse", sparse_attention_score, threshold=0.7)
+
+# Detect all patterns
+results = detector.detect_all(model, "The quick brown fox jumps over the lazy dog")
+
+for pattern_name, matches in results.items():
+    if matches:
+        print(f"\n{pattern_name}: {len(matches)} heads")
+        for match in matches[:3]:
+            print(f"  L{match.layer}H{match.head}: {match.score:.3f}")
+```
+
+### Visualizing Custom Patterns
+
+Create visualizations for your detected patterns:
+
+```python
+def visualize_pattern_distribution(detector_results, model_name="Model"):
+    """Visualize the distribution of custom patterns across a model."""
+    import matplotlib.pyplot as plt
+
+    pattern_counts = {name: len(matches) for name, matches in detector_results.items()}
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars = ax.bar(pattern_counts.keys(), pattern_counts.values())
+    ax.set_ylabel("Number of Heads")
+    ax.set_xlabel("Pattern Type")
+    ax.set_title(f"Custom Pattern Distribution in {model_name}")
+
+    for bar, count in zip(bars, pattern_counts.values()):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5,
+                str(count), ha='center', va='bottom')
+
+    plt.tight_layout()
+    return fig
+
+def plot_pattern_by_layer(detector_results, pattern_name, n_layers=16):
+    """Show where a specific pattern appears across layers."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    matches = detector_results.get(pattern_name, [])
+
+    layer_counts = np.zeros(n_layers)
+    layer_max_scores = np.zeros(n_layers)
+
+    for match in matches:
+        layer_counts[match.layer] += 1
+        layer_max_scores[match.layer] = max(layer_max_scores[match.layer], match.score)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Count by layer
+    ax1.bar(range(n_layers), layer_counts)
+    ax1.set_xlabel("Layer")
+    ax1.set_ylabel("Number of Heads")
+    ax1.set_title(f"{pattern_name} - Count by Layer")
+
+    # Max score by layer
+    ax2.bar(range(n_layers), layer_max_scores, color='orange')
+    ax2.set_xlabel("Layer")
+    ax2.set_ylabel("Max Score")
+    ax2.set_title(f"{pattern_name} - Max Score by Layer")
+
+    plt.tight_layout()
+    return fig
+```
+
+### Pattern Detection Best Practices
+
+1. **Normalize scores to [0, 1]**: Makes threshold selection consistent
+2. **Test on diverse inputs**: Patterns may vary by input type
+3. **Validate with ablation**: Confirm detected heads are causally important
+4. **Document your patterns**: Future you will thank you
+
 ## Advanced Usage
 
 ### Analyzing Specific Token Relationships
@@ -250,23 +583,6 @@ print(f"Position 5 attends to: {np.argsort(attn_from_pos_5)[::-1][:3]}")
 # What attends to position 2?
 attn_to_pos_2 = head_pattern[:, 2]
 print(f"Positions attending to 2: {np.where(attn_to_pos_2 > 0.1)[0]}")
-```
-
-### Custom Pattern Functions
-
-```python
-from mlxterp.visualization.patterns import find_attention_pattern
-
-def diagonal_score(pattern):
-    """Score for attention to self (main diagonal)."""
-    return float(np.mean(np.diag(pattern)))
-
-heads = find_attention_pattern(
-    model,
-    "Test text",
-    pattern_fn=diagonal_score,
-    threshold=0.5
-)
 ```
 
 ### Comparing Across Prompts
@@ -309,6 +625,10 @@ fig = compare_attention(
 )
 ```
 
+![Attention Prompt Comparison](../assets/images/guides/attention_prompt_comparison.png)
+
+*Figure 10: Comparing the same head (L5H0) across different prompts. This reveals whether attention patterns are content-dependent or primarily structural.*
+
 ### Aggregating Across Heads
 
 ```python
@@ -326,6 +646,10 @@ def layer_attention_summary(patterns, layer_idx):
 
 mean_attn, max_attn = layer_attention_summary(patterns, 5)
 ```
+
+![Layer Attention Summary](../assets/images/guides/layer_attention_summary.png)
+
+*Figure 11: Aggregated attention in Layer 5. Left: Mean attention across all 32 heads shows the average behavior. Right: Max attention shows where any head strongly attends, highlighting important token relationships.*
 
 ## Best Practices
 
