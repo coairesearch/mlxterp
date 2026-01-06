@@ -1606,6 +1606,541 @@ with model.trace(large_list):  # May run out of memory
 
 ---
 
+## Visualization Module
+
+The visualization module provides tools for attention pattern analysis and visualization.
+
+```python
+from mlxterp.visualization import (
+    # Attention extraction and visualization
+    get_attention_patterns,
+    attention_heatmap,
+    attention_from_trace,
+    AttentionVisualizationConfig,
+
+    # Pattern detection
+    AttentionPatternDetector,
+    detect_head_types,
+    detect_induction_heads,
+    induction_score,
+    previous_token_score,
+    first_token_score,
+    copying_score,
+)
+```
+
+---
+
+### Function: `get_attention_patterns`
+
+Extract attention weight patterns from a trace.
+
+```python
+get_attention_patterns(
+    trace: Trace,
+    layers: Optional[List[int]] = None
+) -> Dict[int, np.ndarray]
+```
+
+**Parameters:**
+
+- **trace** (`Trace`): Completed trace context with captured attention weights
+- **layers** (`Optional[List[int]]`, default: `None`): Specific layers to extract (None = all)
+
+**Returns:** Dict mapping `layer_idx` -> attention array of shape `(batch, heads, seq_len, seq_len)`
+
+**Example:**
+
+```python
+from mlxterp import InterpretableModel
+from mlxterp.visualization import get_attention_patterns
+
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
+
+with model.trace("The capital of France is") as trace:
+    pass
+
+# Get all attention patterns
+patterns = get_attention_patterns(trace)
+print(f"Found {len(patterns)} layers")
+print(f"Shape: {patterns[0].shape}")  # (1, 32, 6, 6)
+
+# Get specific layers
+patterns = get_attention_patterns(trace, layers=[0, 5, 10])
+```
+
+---
+
+### Function: `attention_heatmap`
+
+Create a heatmap visualization of attention patterns.
+
+```python
+attention_heatmap(
+    attention: np.ndarray,
+    tokens: List[str],
+    head_idx: int = 0,
+    title: Optional[str] = None,
+    colorscale: str = "Blues",
+    backend: str = "matplotlib",
+    mask_upper_tri: bool = True,
+    figsize: tuple = (8, 6)
+) -> Any
+```
+
+**Parameters:**
+
+- **attention** (`np.ndarray`): Attention weights, shape `(batch, heads, seq_q, seq_k)`
+- **tokens** (`List[str]`): Token strings for axis labels
+- **head_idx** (`int`, default: `0`): Which attention head to visualize
+- **title** (`Optional[str]`): Plot title
+- **colorscale** (`str`, default: `"Blues"`): Colormap name
+- **backend** (`str`, default: `"matplotlib"`): Backend (`"matplotlib"`, `"plotly"`, `"circuitsviz"`)
+- **mask_upper_tri** (`bool`, default: `True`): Mask future positions (for causal attention)
+- **figsize** (`tuple`, default: `(8, 6)`): Figure size for matplotlib
+
+**Returns:** Figure object (type depends on backend)
+
+**Example:**
+
+```python
+from mlxterp.visualization import get_attention_patterns, attention_heatmap
+
+with model.trace("Hello world") as trace:
+    pass
+
+patterns = get_attention_patterns(trace, layers=[5])
+tokens = model.to_str_tokens("Hello world")
+
+# Create heatmap for head 0
+fig = attention_heatmap(
+    patterns[5],
+    tokens,
+    head_idx=0,
+    title="Layer 5, Head 0",
+    backend="matplotlib"
+)
+```
+
+---
+
+### Function: `attention_from_trace`
+
+High-level function to visualize attention patterns from a trace.
+
+```python
+attention_from_trace(
+    trace: Trace,
+    tokens: List[str],
+    layers: Optional[List[int]] = None,
+    heads: Optional[List[int]] = None,
+    mode: str = "single",
+    head_notation: str = "LH",
+    config: Optional[AttentionVisualizationConfig] = None
+) -> Any
+```
+
+**Parameters:**
+
+- **trace** (`Trace`): Completed trace context
+- **tokens** (`List[str]`): Token strings for labels
+- **layers** (`Optional[List[int]]`): Layers to visualize (default: first layer)
+- **heads** (`Optional[List[int]]`): Heads to visualize (default: first head)
+- **mode** (`str`, default: `"single"`): Visualization mode:
+  - `"single"`: One heatmap
+  - `"grid"`: Grid of multiple heatmaps
+- **head_notation** (`str`, default: `"LH"`): Notation for titles (`"LH"` = L5H3, `"dot"` = 5.3)
+- **config** (`Optional[AttentionVisualizationConfig]`): Custom configuration
+
+**Returns:** Figure object
+
+**Example:**
+
+```python
+from mlxterp.visualization import attention_from_trace, AttentionVisualizationConfig
+
+with model.trace("The quick brown fox") as trace:
+    pass
+
+tokens = model.to_str_tokens("The quick brown fox")
+
+# Single heatmap
+fig = attention_from_trace(trace, tokens, layers=[5], heads=[0], mode="single")
+
+# Grid of multiple heads
+config = AttentionVisualizationConfig(backend="matplotlib", colorscale="Blues")
+fig = attention_from_trace(
+    trace, tokens,
+    layers=[0, 5, 10],
+    heads=[0, 1, 2, 3],
+    mode="grid",
+    config=config
+)
+```
+
+---
+
+### Class: `AttentionVisualizationConfig`
+
+Configuration for attention visualization.
+
+```python
+AttentionVisualizationConfig(
+    colorscale: str = "Blues",
+    mask_upper_tri: bool = True,
+    backend: str = "auto",
+    figsize: tuple = (10, 8),
+    show_colorbar: bool = True,
+    font_size: int = 10
+)
+```
+
+**Parameters:**
+
+- **colorscale** (`str`): Colormap name (default: `"Blues"`)
+- **mask_upper_tri** (`bool`): Mask future positions (default: `True`)
+- **backend** (`str`): Visualization backend (default: `"auto"` - tries circuitsviz, then plotly, then matplotlib)
+- **figsize** (`tuple`): Figure size (default: `(10, 8)`)
+- **show_colorbar** (`bool`): Show colorbar (default: `True`)
+- **font_size** (`int`): Font size for labels (default: `10`)
+
+---
+
+### Function: `induction_score`
+
+Compute induction head score for an attention pattern.
+
+Induction heads implement the pattern `[A][B]...[A] -> predict [B]` by attending from position `i` to position `i - seq_len + 1` in repeated sequences.
+
+```python
+induction_score(
+    attention_pattern: np.ndarray,
+    seq_len: int
+) -> float
+```
+
+**Parameters:**
+
+- **attention_pattern** (`np.ndarray`): Attention weights, shape `(seq_q, seq_k)`
+- **seq_len** (`int`): Length of the repeated subsequence
+
+**Returns:** Induction score (0-1, higher = more induction-like)
+
+**Example:**
+
+```python
+import numpy as np
+from mlxterp.visualization import induction_score
+
+# Create pattern from repeated sequence "ABC ABC"
+# In a true induction head, position 4 (second A) attends to position 1 (first B)
+seq_len = 3
+total_len = 6
+
+# Synthetic perfect induction pattern
+pattern = np.zeros((total_len, total_len))
+for i in range(seq_len, total_len):
+    pattern[i, i - seq_len + 1] = 1.0
+
+score = induction_score(pattern, seq_len)
+print(f"Induction score: {score:.3f}")  # ~1.0
+```
+
+---
+
+### Function: `previous_token_score`
+
+Compute previous token head score.
+
+Previous token heads attend strongly to position `i-1` (the immediately preceding token).
+
+```python
+previous_token_score(attention_pattern: np.ndarray) -> float
+```
+
+**Parameters:**
+
+- **attention_pattern** (`np.ndarray`): Attention weights, shape `(seq_q, seq_k)`
+
+**Returns:** Previous token score (0-1, higher = attends more to previous position)
+
+**Example:**
+
+```python
+from mlxterp.visualization import previous_token_score
+
+# Perfect previous token pattern
+pattern = np.zeros((5, 5))
+for i in range(1, 5):
+    pattern[i, i-1] = 1.0
+
+score = previous_token_score(pattern)
+print(f"Previous token score: {score:.3f}")  # ~1.0
+```
+
+---
+
+### Function: `first_token_score`
+
+Compute first token (BOS) head score.
+
+First token heads attend strongly to position 0 (typically BOS or first token).
+
+```python
+first_token_score(attention_pattern: np.ndarray) -> float
+```
+
+**Parameters:**
+
+- **attention_pattern** (`np.ndarray`): Attention weights, shape `(seq_q, seq_k)`
+
+**Returns:** First token score (0-1, higher = attends more to position 0)
+
+**Example:**
+
+```python
+from mlxterp.visualization import first_token_score
+
+# Perfect first token pattern
+pattern = np.zeros((5, 5))
+pattern[:, 0] = 1.0  # All positions attend to first
+
+score = first_token_score(pattern)
+print(f"First token score: {score:.3f}")  # ~1.0
+```
+
+---
+
+### Function: `copying_score`
+
+Compute copying head score from OV circuit.
+
+Copying heads increase the logit of the attended-to token.
+
+```python
+copying_score(
+    ov_circuit: np.ndarray,
+    unembedding: Optional[np.ndarray] = None
+) -> float
+```
+
+**Parameters:**
+
+- **ov_circuit** (`np.ndarray`): OV circuit matrix `W_V @ W_O`, shape `(d_model, d_model)`
+- **unembedding** (`Optional[np.ndarray]`): Optional unembedding matrix for full analysis
+
+**Returns:** Copying score (higher = more copying behavior)
+
+---
+
+### Class: `AttentionPatternDetector`
+
+Detector for classifying attention head types.
+
+```python
+AttentionPatternDetector(
+    induction_threshold: float = 0.4,
+    previous_token_threshold: float = 0.5,
+    first_token_threshold: float = 0.3,
+    current_token_threshold: float = 0.3
+)
+```
+
+**Parameters:**
+
+- **induction_threshold** (`float`): Threshold for induction head classification
+- **previous_token_threshold** (`float`): Threshold for previous token head
+- **first_token_threshold** (`float`): Threshold for first token head
+- **current_token_threshold** (`float`): Threshold for current token (self-attention) head
+
+**Methods:**
+
+#### `analyze_head`
+
+Compute all pattern scores for a single attention head.
+
+```python
+analyze_head(
+    attention_pattern: np.ndarray,
+    seq_len_for_induction: Optional[int] = None
+) -> Dict[str, float]
+```
+
+**Returns:** Dict of pattern type -> score
+
+#### `classify_head`
+
+Classify an attention head into one or more types.
+
+```python
+classify_head(
+    attention_pattern: np.ndarray,
+    seq_len_for_induction: Optional[int] = None
+) -> List[str]
+```
+
+**Returns:** List of head type labels that exceed thresholds
+
+**Example:**
+
+```python
+from mlxterp.visualization import AttentionPatternDetector
+
+detector = AttentionPatternDetector(
+    previous_token_threshold=0.5,
+    first_token_threshold=0.3
+)
+
+# Analyze a head
+scores = detector.analyze_head(attention_pattern)
+print(f"Scores: {scores}")
+# {'previous_token': 0.85, 'first_token': 0.1, 'current_token': 0.05}
+
+# Classify
+types = detector.classify_head(attention_pattern)
+print(f"Classification: {types}")  # ['previous_token']
+```
+
+---
+
+### Function: `detect_head_types`
+
+Detect attention head types across a model.
+
+```python
+detect_head_types(
+    model: InterpretableModel,
+    text: str,
+    threshold: float = 0.4,
+    layers: Optional[List[int]] = None
+) -> Dict[str, List[Tuple[int, int]]]
+```
+
+**Parameters:**
+
+- **model** (`InterpretableModel`): Model to analyze
+- **text** (`str`): Input text for analysis
+- **threshold** (`float`, default: `0.4`): Score threshold for classification
+- **layers** (`Optional[List[int]]`): Specific layers to analyze (None = all)
+
+**Returns:** Dict mapping head type to list of `(layer, head)` tuples
+
+**Example:**
+
+```python
+from mlxterp.visualization import detect_head_types
+
+head_types = detect_head_types(
+    model,
+    "The quick brown fox jumps over the lazy dog",
+    threshold=0.3,
+    layers=[0, 5, 10, 15]
+)
+
+print(f"Previous token heads: {len(head_types['previous_token'])}")
+print(f"First token heads: {len(head_types['first_token'])}")
+
+# Print specific heads
+for layer, head in head_types['previous_token'][:5]:
+    print(f"  L{layer}H{head}")
+```
+
+---
+
+### Function: `detect_induction_heads`
+
+Detect induction heads using repeated random token sequences.
+
+```python
+detect_induction_heads(
+    model: InterpretableModel,
+    n_random_tokens: int = 50,
+    n_repeats: int = 2,
+    threshold: float = 0.4,
+    layers: Optional[List[int]] = None,
+    seed: int = 42
+) -> List[HeadScore]
+```
+
+**Parameters:**
+
+- **model** (`InterpretableModel`): Model to analyze
+- **n_random_tokens** (`int`, default: `50`): Number of random tokens in subsequence
+- **n_repeats** (`int`, default: `2`): Number of times to repeat the subsequence
+- **threshold** (`float`, default: `0.4`): Score threshold for detection
+- **layers** (`Optional[List[int]]`): Specific layers to analyze (None = all)
+- **seed** (`int`, default: `42`): Random seed for reproducibility
+
+**Returns:** List of `HeadScore` objects for heads above threshold, sorted by score descending
+
+**Example:**
+
+```python
+from mlxterp.visualization import detect_induction_heads
+
+# Find induction heads
+induction_heads = detect_induction_heads(
+    model,
+    n_random_tokens=50,
+    threshold=0.3,
+    layers=[0, 5, 10, 15]
+)
+
+print(f"Found {len(induction_heads)} induction heads")
+for head in induction_heads[:10]:
+    print(f"  L{head.layer}H{head.head}: {head.score:.3f}")
+```
+
+---
+
+### Class: `HeadScore`
+
+Score for an attention head (dataclass).
+
+```python
+@dataclass
+class HeadScore:
+    layer: int
+    head: int
+    score: float
+    head_type: Optional[str] = None
+```
+
+---
+
+### Method: `InterpretableModel.to_str_tokens`
+
+Convert text or token IDs to a list of token strings.
+
+```python
+model.to_str_tokens(
+    input: Union[str, List[int], mx.array],
+    prepend_bos: bool = False
+) -> List[str]
+```
+
+**Parameters:**
+
+- **input**: Text string, list of token IDs, or mx.array of tokens
+- **prepend_bos** (`bool`, default: `False`): Whether to prepend BOS token (only for string input)
+
+**Returns:** List of token strings
+
+**Example:**
+
+```python
+# From text
+tokens = model.to_str_tokens("Hello world")
+print(tokens)  # ['<|begin_of_text|>', 'Hello', ' world']
+
+# From token IDs
+token_ids = model.encode("Hello world")
+tokens = model.to_str_tokens(token_ids)
+print(tokens)  # ['<|begin_of_text|>', 'Hello', ' world']
+```
+
+---
+
 ## Version History
 
 ### 0.1.0 (Current)
@@ -1615,3 +2150,8 @@ with model.trace(large_list):  # May run out of memory
 - Intervention system
 - Basic utility functions
 - Support for any MLX model
+- **New**: Attention visualization module
+  - Attention weight capture during tracing
+  - Pattern extraction and visualization
+  - Pattern detection (induction, previous token, first token heads)
+  - Multiple backends (matplotlib, plotly, circuitsviz)
