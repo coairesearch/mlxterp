@@ -171,16 +171,22 @@ config = AttentionVisualizationConfig(backend="plotly")
 
 mlxterp includes a custom-built interactive visualization system inspired by CircuitsViz, with no external dependencies. This provides a rich exploration experience for attention patterns.
 
+### Live Demo
+
+Try the interactive visualization below (hover over tokens to see attention connections):
+
+<iframe src="../assets/interactive_attention_demo.html" width="100%" height="800" frameborder="0" style="border: 1px solid #ddd; border-radius: 8px;"></iframe>
+
 ### Features
 
 The interactive visualization includes:
 
-- **Token bar with click-to-focus**: Click any token to see what it attends to (or what attends to it)
+- **Token bar with hover highlighting**: Hover over any token to instantly see attention connections - no click required! Click to lock the selection.
 - **Head selector grid**: Thumbnail previews of all heads - hover to preview, click to lock
 - **Main attention heatmap**: Full-size view of the selected head's attention pattern
 - **Source ↔ Destination toggle**: Switch between "what does this token attend to" and "what attends to this token"
 - **Layer slider**: Navigate between layers
-- **Cross-layer attention flow**: When a token is selected, see how its attention evolves across all layers
+- **Cross-layer attention flow**: When hovering over a token, see how its attention evolves across all layers
 
 ### Quick Start - Interactive
 
@@ -229,18 +235,20 @@ save_interactive_attention(patterns, tokens, "output.html", config=config)
 
 1. **Explore heads**: Hover over thumbnails in the head selector to preview different heads. Click to lock a head for detailed analysis.
 
-2. **Focus on a token**: Click any token in the token bar to:
-   - Highlight its attention pattern in the heatmap
-   - Show attention weights on other tokens (color intensity = attention strength)
-   - Display cross-layer attention flow showing how this token's attention evolves
+2. **Highlight a token**: Simply hover over any token in the token bar to instantly see:
+   - Its attention pattern highlighted in the heatmap
+   - Attention weights on other tokens (color intensity = attention strength)
+   - Cross-layer attention flow showing how this token's attention evolves
 
-3. **Toggle direction**: Use the "Source → Dest" / "Source ← Dest" buttons to switch between:
+3. **Lock a token**: Click any token to lock the selection - it will stay highlighted even when you move the mouse away. Click again to unlock. The info panel shows `[LOCKED]` when a token is locked.
+
+4. **Toggle direction**: Use the "Source → Dest" / "Source ← Dest" buttons to switch between:
    - **Source → Dest**: What does the selected token attend to?
    - **Source ← Dest**: What tokens attend to the selected token?
 
-4. **Navigate layers**: Use the layer slider to see how attention patterns change across layers. Click on any layer in the cross-layer flow to jump to it.
+5. **Navigate layers**: Use the layer slider to see how attention patterns change across layers. Click on any layer in the cross-layer flow to jump to it.
 
-5. **Hover for details**: Hover over the heatmap to see exact attention percentages between token pairs.
+6. **Hover for details**: Hover over the heatmap to see exact attention percentages between token pairs.
 
 ### Direct from Trace
 

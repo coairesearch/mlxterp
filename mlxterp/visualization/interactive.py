@@ -161,6 +161,11 @@ def _get_interactive_template() -> str:
             border-color: #6366f1;
             background: #eef2ff !important;
         }
+        .mlxterp-token.locked {
+            border-color: #6366f1;
+            border-width: 2px;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+        }
         .mlxterp-token.highlighted {
             box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
         }
@@ -271,7 +276,7 @@ def _get_interactive_template() -> str:
         </div>
 
         <div class="mlxterp-tokens-container">
-            <div class="mlxterp-tokens-title">Tokens (click to focus)</div>
+            <div class="mlxterp-tokens-title">Tokens (hover to highlight, click to lock)</div>
             <div class="mlxterp-tokens" id="tokens-__VIZ_ID__"></div>
         </div>
 
@@ -281,7 +286,7 @@ def _get_interactive_template() -> str:
         </div>
 
         <div class="mlxterp-info-panel" id="info-panel-__VIZ_ID__">
-            Hover over tokens or the heatmap to see attention weights. Click a token to see how attention flows across layers.
+            Hover over tokens to see attention connections. Click a token to lock the selection.
         </div>
     </div>
 
@@ -297,6 +302,7 @@ def _get_interactive_template() -> str:
         var currentLayer = 0;
         var currentHead = 0;
         var selectedToken = null;
+        var lockedToken = null;
         var direction = 'destination';
         var lockedHead = null;
 
@@ -441,21 +447,39 @@ def _get_interactive_template() -> str:
                 span.textContent = token;
                 span.dataset.idx = idx;
 
+                span.addEventListener("mouseenter", function() {
+                    if (lockedToken === null) {
+                        selectedToken = idx;
+                        document.getElementById("layer-flow-" + vizId).style.display = "block";
+                        updateLayerFlow();
+                        updateTokenHighlights();
+                        drawHeatmap();
+                    }
+                    updateInfoPanel(idx);
+                });
+
+                span.addEventListener("mouseleave", function() {
+                    if (lockedToken === null) {
+                        selectedToken = null;
+                        document.getElementById("layer-flow-" + vizId).style.display = "none";
+                        updateTokenHighlights();
+                        drawHeatmap();
+                    }
+                });
+
                 span.addEventListener("click", function() {
-                    if (selectedToken === idx) {
+                    if (lockedToken === idx) {
+                        lockedToken = null;
                         selectedToken = null;
                         document.getElementById("layer-flow-" + vizId).style.display = "none";
                     } else {
+                        lockedToken = idx;
                         selectedToken = idx;
                         document.getElementById("layer-flow-" + vizId).style.display = "block";
                         updateLayerFlow();
                     }
                     updateTokenHighlights();
                     drawHeatmap();
-                });
-
-                span.addEventListener("mouseenter", function() {
-                    updateInfoPanel(idx);
                 });
 
                 container.appendChild(span);
@@ -467,10 +491,12 @@ def _get_interactive_template() -> str:
             var attention = data[currentLayer][currentHead];
 
             tokenSpans.forEach(function(span, idx) {
+                span.classList.remove("selected", "locked");
                 if (idx === selectedToken) {
                     span.classList.add("selected");
-                } else {
-                    span.classList.remove("selected");
+                }
+                if (idx === lockedToken) {
+                    span.classList.add("locked");
                 }
 
                 var attnValue = 0;
@@ -550,14 +576,15 @@ def _get_interactive_template() -> str:
             var attention = data[currentLayer][currentHead];
 
             if (selectedToken !== null) {
-                var info = "<strong>\\"" + tokens[selectedToken] + "\\"</strong> (pos " + selectedToken + ") at L" + currentLayer + "H" + currentHead + ":<br>";
+                var lockStatus = lockedToken === selectedToken ? " [LOCKED]" : "";
+                var info = '<strong>"' + tokens[selectedToken] + '"</strong> (pos ' + selectedToken + ') at L' + currentLayer + 'H' + currentHead + lockStatus + ':<br>';
 
                 if (direction === "destination") {
                     info += "Attends to: ";
                     var attns = [];
                     for (var j = 0; j <= selectedToken; j++) {
                         if (attention[selectedToken][j] > 0.05) {
-                            attns.push("\\"" + tokens[j] + "\\" (" + (attention[selectedToken][j] * 100).toFixed(1) + "%)");
+                            attns.push('"' + tokens[j] + '" (' + (attention[selectedToken][j] * 100).toFixed(1) + '%)');
                         }
                     }
                     info += attns.slice(0, 5).join(", ");
@@ -567,7 +594,7 @@ def _get_interactive_template() -> str:
                     var attns = [];
                     for (var i = selectedToken; i < seqLen; i++) {
                         if (attention[i][selectedToken] > 0.05) {
-                            attns.push("\\"" + tokens[i] + "\\" (" + (attention[i][selectedToken] * 100).toFixed(1) + "%)");
+                            attns.push('"' + tokens[i] + '" (' + (attention[i][selectedToken] * 100).toFixed(1) + '%)');
                         }
                     }
                     info += attns.slice(0, 5).join(", ");
@@ -576,9 +603,9 @@ def _get_interactive_template() -> str:
 
                 panel.innerHTML = info;
             } else if (tokenIdx !== undefined) {
-                panel.innerHTML = "Hover: <strong>\\"" + tokens[tokenIdx] + "\\"</strong> (pos " + tokenIdx + "). Click to focus and see attention flow.";
+                panel.innerHTML = '<strong>"' + tokens[tokenIdx] + '"</strong> (pos ' + tokenIdx + '). Hover to see attention, click to lock.';
             } else {
-                panel.innerHTML = "Hover over tokens or the heatmap to see attention weights. Click a token to see how attention flows across layers.";
+                panel.innerHTML = "Hover over tokens to see attention connections. Click a token to lock the selection.";
             }
         }
 
@@ -620,7 +647,7 @@ def _get_interactive_template() -> str:
                 var attention = data[currentLayer][currentHead];
                 var value = attention[row][col];
                 var panel = document.getElementById("info-panel-" + vizId);
-                panel.innerHTML = "<strong>\\"" + tokens[row] + "\\"</strong> → <strong>\\"" + tokens[col] + "\\"</strong>: " + (value * 100).toFixed(1) + "% attention (L" + currentLayer + "H" + currentHead + ")";
+                panel.innerHTML = '<strong>"' + tokens[row] + '"</strong> → <strong>"' + tokens[col] + '"</strong>: ' + (value * 100).toFixed(1) + '% attention (L' + currentLayer + 'H' + currentHead + ')';
             }
         });
 
@@ -655,12 +682,12 @@ def interactive_attention(
     """Create an interactive attention visualization.
 
     This creates a CircuitsViz-style interactive visualization with:
-    - Token bar with click-to-focus highlighting
+    - Token bar with hover-to-highlight (click to lock selection)
     - Head selector with hover preview and click-to-lock
     - Main attention heatmap
     - Source ↔ Destination toggle
     - Layer slider
-    - Cross-layer attention flow view
+    - Cross-layer attention flow view (appears on token hover)
 
     Args:
         attention_patterns: Dict mapping layer index to attention tensors.
