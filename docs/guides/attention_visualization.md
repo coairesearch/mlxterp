@@ -10,6 +10,7 @@ mlxterp captures attention weights during model tracing, enabling:
 - **Pattern detection**: Automatically identify head types (induction, previous token, etc.)
 - **Multi-head analysis**: Compare patterns across layers and heads
 - **Custom analysis**: Build your own attention-based analyses with custom pattern functions
+- **Interactive exploration**: CircuitsViz-style interactive visualizations for Jupyter and HTML
 
 ## Quick Start
 
@@ -165,6 +166,106 @@ config = AttentionVisualizationConfig(backend="auto")
 # Force specific backend
 config = AttentionVisualizationConfig(backend="plotly")
 ```
+
+## Interactive Visualization
+
+mlxterp includes a custom-built interactive visualization system inspired by CircuitsViz, with no external dependencies. This provides a rich exploration experience for attention patterns.
+
+### Features
+
+The interactive visualization includes:
+
+- **Token bar with click-to-focus**: Click any token to see what it attends to (or what attends to it)
+- **Head selector grid**: Thumbnail previews of all heads - hover to preview, click to lock
+- **Main attention heatmap**: Full-size view of the selected head's attention pattern
+- **Source ↔ Destination toggle**: Switch between "what does this token attend to" and "what attends to this token"
+- **Layer slider**: Navigate between layers
+- **Cross-layer attention flow**: When a token is selected, see how its attention evolves across all layers
+
+### Quick Start - Interactive
+
+```python
+from mlxterp import InterpretableModel
+from mlxterp.visualization import (
+    get_attention_patterns,
+    interactive_attention,
+    display_interactive_attention,
+    save_interactive_attention,
+    InteractiveAttentionConfig,
+)
+
+# Load model and trace
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
+
+text = "Her name was Alex Hart. Tomorrow at lunch time Alex"
+with model.trace(text) as trace:
+    pass
+
+tokens = model.to_str_tokens(text)
+patterns = get_attention_patterns(trace)
+
+# Option 1: Display in Jupyter notebook
+display_interactive_attention(patterns, tokens)
+
+# Option 2: Save as standalone HTML file
+save_interactive_attention(patterns, tokens, "attention_explorer.html")
+
+# Option 3: Get HTML string for custom use
+html = interactive_attention(patterns, tokens)
+```
+
+### Configuration
+
+```python
+config = InteractiveAttentionConfig(
+    title="My Attention Analysis",  # Title shown at top
+    heatmap_size=400,               # Size of main heatmap in pixels
+)
+
+save_interactive_attention(patterns, tokens, "output.html", config=config)
+```
+
+### Using the Interactive Interface
+
+1. **Explore heads**: Hover over thumbnails in the head selector to preview different heads. Click to lock a head for detailed analysis.
+
+2. **Focus on a token**: Click any token in the token bar to:
+   - Highlight its attention pattern in the heatmap
+   - Show attention weights on other tokens (color intensity = attention strength)
+   - Display cross-layer attention flow showing how this token's attention evolves
+
+3. **Toggle direction**: Use the "Source → Dest" / "Source ← Dest" buttons to switch between:
+   - **Source → Dest**: What does the selected token attend to?
+   - **Source ← Dest**: What tokens attend to the selected token?
+
+4. **Navigate layers**: Use the layer slider to see how attention patterns change across layers. Click on any layer in the cross-layer flow to jump to it.
+
+5. **Hover for details**: Hover over the heatmap to see exact attention percentages between token pairs.
+
+### Direct from Trace
+
+For convenience, you can create the visualization directly from a trace:
+
+```python
+from mlxterp.visualization import interactive_attention_from_trace
+
+with model.trace(text) as trace:
+    pass
+
+html = interactive_attention_from_trace(
+    trace,
+    tokens,
+    layers=[0, 5, 10, 15],  # Optional: select specific layers
+)
+```
+
+### Embedding in Documentation
+
+The generated HTML is self-contained and can be:
+- Opened directly in any browser
+- Embedded in Jupyter notebooks
+- Included in web-based documentation
+- Shared as standalone files
 
 ## Pattern Detection
 

@@ -34,12 +34,26 @@ from .patterns import (
     copying_score,
 )
 
+from .interactive import (
+    interactive_attention,
+    display_interactive_attention,
+    save_interactive_attention,
+    interactive_attention_from_trace,
+    InteractiveAttentionConfig,
+)
+
 __all__ = [
     # Attention visualization
     "attention_heatmap",
     "attention_from_trace",
     "get_attention_patterns",
     "AttentionVisualizationConfig",
+    # Interactive visualization
+    "interactive_attention",
+    "display_interactive_attention",
+    "save_interactive_attention",
+    "interactive_attention_from_trace",
+    "InteractiveAttentionConfig",
     # Pattern detection
     "AttentionPatternDetector",
     "detect_head_types",
