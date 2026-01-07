@@ -550,14 +550,14 @@ def _get_interactive_template() -> str:
             var attention = data[currentLayer][currentHead];
 
             if (selectedToken !== null) {
-                var info = "<strong>\"" + tokens[selectedToken] + "\"</strong> (pos " + selectedToken + ") at L" + currentLayer + "H" + currentHead + ":<br>";
+                var info = "<strong>\\"" + tokens[selectedToken] + "\\"</strong> (pos " + selectedToken + ") at L" + currentLayer + "H" + currentHead + ":<br>";
 
                 if (direction === "destination") {
                     info += "Attends to: ";
                     var attns = [];
                     for (var j = 0; j <= selectedToken; j++) {
                         if (attention[selectedToken][j] > 0.05) {
-                            attns.push("\"" + tokens[j] + "\" (" + (attention[selectedToken][j] * 100).toFixed(1) + "%)");
+                            attns.push("\\"" + tokens[j] + "\\" (" + (attention[selectedToken][j] * 100).toFixed(1) + "%)");
                         }
                     }
                     info += attns.slice(0, 5).join(", ");
@@ -567,7 +567,7 @@ def _get_interactive_template() -> str:
                     var attns = [];
                     for (var i = selectedToken; i < seqLen; i++) {
                         if (attention[i][selectedToken] > 0.05) {
-                            attns.push("\"" + tokens[i] + "\" (" + (attention[i][selectedToken] * 100).toFixed(1) + "%)");
+                            attns.push("\\"" + tokens[i] + "\\" (" + (attention[i][selectedToken] * 100).toFixed(1) + "%)");
                         }
                     }
                     info += attns.slice(0, 5).join(", ");
@@ -576,7 +576,7 @@ def _get_interactive_template() -> str:
 
                 panel.innerHTML = info;
             } else if (tokenIdx !== undefined) {
-                panel.innerHTML = "Hover: <strong>\"" + tokens[tokenIdx] + "\"</strong> (pos " + tokenIdx + "). Click to focus and see attention flow.";
+                panel.innerHTML = "Hover: <strong>\\"" + tokens[tokenIdx] + "\\"</strong> (pos " + tokenIdx + "). Click to focus and see attention flow.";
             } else {
                 panel.innerHTML = "Hover over tokens or the heatmap to see attention weights. Click a token to see how attention flows across layers.";
             }
@@ -620,7 +620,7 @@ def _get_interactive_template() -> str:
                 var attention = data[currentLayer][currentHead];
                 var value = attention[row][col];
                 var panel = document.getElementById("info-panel-" + vizId);
-                panel.innerHTML = "<strong>\"" + tokens[row] + "\"</strong> → <strong>\"" + tokens[col] + "\"</strong>: " + (value * 100).toFixed(1) + "% attention (L" + currentLayer + "H" + currentHead + ")";
+                panel.innerHTML = "<strong>\\"" + tokens[row] + "\\"</strong> → <strong>\\"" + tokens[col] + "\\"</strong>: " + (value * 100).toFixed(1) + "% attention (L" + currentLayer + "H" + currentHead + ")";
             }
         });
 
