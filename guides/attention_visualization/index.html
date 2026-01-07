@@ -1196,6 +1196,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#live-demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live Demo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2160,6 +2171,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#live-demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Live Demo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2763,15 +2785,19 @@
 </span></code></pre></div>
 <h2 id="interactive-visualization">Interactive Visualization<a class="headerlink" href="#interactive-visualization" title="Permanent link">&para;</a></h2>
 <p>mlxterp includes a custom-built interactive visualization system inspired by CircuitsViz, with no external dependencies. This provides a rich exploration experience for attention patterns.</p>
+<h3 id="live-demo">Live Demo<a class="headerlink" href="#live-demo" title="Permanent link">&para;</a></h3>
+<p>Try the interactive visualization below (hover over tokens to see attention connections):</p>
+<iframe src="../assets/interactive_attention_demo.html" width="100%" height="800" frameborder="0" style="border: 1px solid #ddd; border-radius: 8px;"></iframe>
+
 <h3 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h3>
 <p>The interactive visualization includes:</p>
 <ul>
-<li><strong>Token bar with click-to-focus</strong>: Click any token to see what it attends to (or what attends to it)</li>
+<li><strong>Token bar with hover highlighting</strong>: Hover over any token to instantly see attention connections - no click required! Click to lock the selection.</li>
 <li><strong>Head selector grid</strong>: Thumbnail previews of all heads - hover to preview, click to lock</li>
 <li><strong>Main attention heatmap</strong>: Full-size view of the selected head's attention pattern</li>
 <li><strong>Source ↔ Destination toggle</strong>: Switch between "what does this token attend to" and "what attends to this token"</li>
 <li><strong>Layer slider</strong>: Navigate between layers</li>
-<li><strong>Cross-layer attention flow</strong>: When a token is selected, see how its attention evolves across all layers</li>
+<li><strong>Cross-layer attention flow</strong>: When hovering over a token, see how its attention evolves across all layers</li>
 </ul>
 <h3 id="quick-start-interactive">Quick Start - Interactive<a class="headerlink" href="#quick-start-interactive" title="Permanent link">&para;</a></h3>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">mlxterp</span><span class="w"> </span><span class="kn">import</span> <span class="n">InterpretableModel</span>
@@ -2816,12 +2842,15 @@
 <p><strong>Explore heads</strong>: Hover over thumbnails in the head selector to preview different heads. Click to lock a head for detailed analysis.</p>
 </li>
 <li>
-<p><strong>Focus on a token</strong>: Click any token in the token bar to:</p>
+<p><strong>Highlight a token</strong>: Simply hover over any token in the token bar to instantly see:</p>
 </li>
-<li>Highlight its attention pattern in the heatmap</li>
-<li>Show attention weights on other tokens (color intensity = attention strength)</li>
+<li>Its attention pattern highlighted in the heatmap</li>
+<li>Attention weights on other tokens (color intensity = attention strength)</li>
 <li>
-<p>Display cross-layer attention flow showing how this token's attention evolves</p>
+<p>Cross-layer attention flow showing how this token's attention evolves</p>
+</li>
+<li>
+<p><strong>Lock a token</strong>: Click any token to lock the selection - it will stay highlighted even when you move the mouse away. Click again to unlock. The info panel shows <code>[LOCKED]</code> when a token is locked.</p>
 </li>
 <li>
 <p><strong>Toggle direction</strong>: Use the "Source → Dest" / "Source ← Dest" buttons to switch between:</p>
