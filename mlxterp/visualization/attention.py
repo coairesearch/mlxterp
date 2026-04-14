@@ -440,10 +440,10 @@ def _attention_grid_matplotlib(
         head_list = []
         for layer_idx, attn in patterns.items():
             num_heads = attn.shape[1]
-            for h in range(min(4, num_heads)):  # Limit per layer for matplotlib
+            for h in range(num_heads):
                 head_list.append((layer_idx, h))
 
-    max_heads = 12
+    max_heads = 16
     if len(head_list) > max_heads:
         head_list = head_list[:max_heads]
 

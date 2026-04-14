@@ -301,6 +301,7 @@ def detect_head_types(
     patterns = get_attention_patterns(trace, layers)
 
     detector = AttentionPatternDetector(
+        induction_threshold=threshold,
         previous_token_threshold=threshold,
         first_token_threshold=threshold,
         current_token_threshold=threshold,

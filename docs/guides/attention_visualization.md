@@ -102,7 +102,9 @@ from mlxterp.visualization import attention_heatmap, AttentionVisualizationConfi
 config = AttentionVisualizationConfig(
     colorscale="Blues",    # Matplotlib colormap name
     mask_upper_tri=True,   # Mask future positions (causal)
-    figsize=(8, 6)
+    figure_width=800,
+    figure_height=600,
+    backend="matplotlib",  # or "plotly", "circuitsvis"
 )
 
 fig = attention_heatmap(
@@ -110,7 +112,6 @@ fig = attention_heatmap(
     tokens,               # Token labels
     head_idx=0,           # Which head to show
     title="Layer 5, Head 0",
-    backend="matplotlib", # or "plotly", "circuitsviz"
     config=config
 )
 ```
@@ -137,10 +138,10 @@ config = AttentionVisualizationConfig(
 fig = attention_from_trace(
     trace,
     tokens,
-    layers=[0, 4, 8, 12],  # 4 layers
-    heads=[0, 1, 2, 3],     # 4 heads per layer
-    mode="grid",            # Grid layout
-    head_notation="LH",     # "L5H3" style titles
+    layers=[0, 4, 8, 12],               # 4 layers
+    heads=[(0, 0), (4, 1), (8, 2), (12, 3)],  # Specific (layer, head) pairs
+    mode="grid",                         # Grid layout
+    head_notation="LH",                  # "L5H3" style titles
     config=config
 )
 ```
@@ -470,7 +471,7 @@ def sparse_attention_score(pattern, sparsity_threshold=0.1):
 ### Using Custom Patterns with find_attention_pattern
 
 ```python
-from mlxterp.visualization.patterns import find_attention_pattern
+from mlxterp.visualization import find_attention_pattern
 
 # Find all heads matching your custom pattern
 diagonal_heads = find_attention_pattern(
@@ -481,8 +482,8 @@ diagonal_heads = find_attention_pattern(
 )
 
 print(f"Found {len(diagonal_heads)} diagonal attention heads")
-for layer, head, score in diagonal_heads[:5]:
-    print(f"  L{layer}H{head}: {score:.3f}")
+for head in diagonal_heads[:5]:
+    print(f"  L{head.layer}H{head.head}: {head.score:.3f}")
 ```
 
 ### Creating Composite Patterns

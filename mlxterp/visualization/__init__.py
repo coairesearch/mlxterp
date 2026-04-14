@@ -32,6 +32,7 @@ from .patterns import (
     previous_token_score,
     first_token_score,
     copying_score,
+    find_attention_pattern,
 )
 
 from .interactive import (
@@ -62,4 +63,5 @@ __all__ = [
     "previous_token_score",
     "first_token_score",
     "copying_score",
+    "find_attention_pattern",
 ]
