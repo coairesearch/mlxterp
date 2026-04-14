@@ -319,6 +319,52 @@ Most interpretability research analyzes single prompts. But LLMs are used in mul
 
 **Why**: A chat model's response to turn 5 depends on everything said in turns 1-4. Researchers need to trace how information flows across conversation turns — which earlier turns does the model "remember"? How does KV-cache carry information? Where does context get lost?
 
+#### How Turn Identification Works
+
+Chat models use **chat templates** that insert special tokens between turns. These tokens are the natural turn boundaries:
+
+```
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+My name is Alice.<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+Nice to meet you!<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+What's my name?<|eot_id|>
+```
+
+**Implementation approach**:
+
+1. **Tokenize with chat template** — use the tokenizer's `apply_chat_template()` to get the full token sequence with all special tokens inserted
+2. **Scan for boundary tokens** — detect template-specific delimiters:
+   - Llama: `<|start_header_id|>` ... `<|end_header_id|>` ... `<|eot_id|>`
+   - ChatML (Qwen, etc.): `<|im_start|>` ... `<|im_end|>`
+   - Gemma: `<start_of_turn>` ... `<end_of_turn>`
+   - Fallback: regex on known patterns, or user-provided boundary token IDs
+3. **Build a turn index** — map each token position to its turn, role, and whether it's content or template markup
+4. **Expose via Turn objects** — each turn knows its position range, role, and can slice activations
+
+**Internal data structure**:
+
+```python
+@dataclass
+class Turn:
+    index: int              # turn number (0-indexed)
+    role: str               # "user", "assistant", "system"
+    full_start: int         # first token position (including template tokens)
+    full_end: int           # last token position (including template tokens)
+    content_start: int      # first content token (excluding role markers)
+    content_end: int        # last content token (excluding eot markers)
+    
+    @property
+    def content_positions(self) -> slice:
+        return slice(self.content_start, self.content_end)
+    
+    @property
+    def full_positions(self) -> slice:
+        return slice(self.full_start, self.full_end)
+```
+
 **Proposed API**:
 
 ```python
@@ -335,17 +381,34 @@ with model.conversation_trace(conversation) as ct:
     turn3_residual = ct.turns[2].layers[5].output.save()
     final_output = ct.output.save()
 
-# Activations are segmented by turn boundaries
-print(ct.turn_boundaries)  # [(0, 12), (12, 24), (24, 31)]
+# Turn metadata
+print(ct.turns)
+# [Turn(0, role="user",      content=5:12,  full=1:13),
+#  Turn(1, role="assistant",  content=16:22, full=13:23),
+#  Turn(2, role="user",      content=26:31, full=23:32)]
+
+# Flexible turn selection
+ct.turns[0]                          # all tokens in turn 0 (including template)
+ct.turns[0].content                  # only content tokens (skip role/eot markers)
+ct.turns[0:2]                        # turns 0 and 1
+ct.turns.by_role("user")             # all user turns
+ct.turns.by_role("assistant")        # all assistant turns
+ct.turns[2].layers[5].output.save()  # activations sliced to turn 2's positions only
+
+# Cross-turn attention
+ct.cross_turn_attention(layer=5, head=0)
+# Returns: (n_turns, n_turns) matrix of aggregated attention between turns
 ```
 
 **Deliverables**:
 - [ ] `model.conversation_trace(messages)` context manager
-- [ ] Chat template handling (apply_chat_template or equivalent for MLX tokenizers)
-- [ ] Turn boundary tracking (which token positions belong to which turn)
-- [ ] Per-turn activation access via `ct.turns[i]`
-- [ ] Cross-turn attention visualization (which turns attend to which)
+- [ ] `Turn` dataclass with content vs full position tracking
+- [ ] `TurnList` with indexing, slicing, role filtering
+- [ ] Chat template detection (auto-detect from tokenizer, support Llama/ChatML/Gemma/custom)
+- [ ] Per-turn activation slicing via `ct.turns[i].layers[j].output.save()`
+- [ ] Cross-turn attention aggregation
 - [ ] KV-cache aware tracing (understand cached vs freshly computed activations)
+- [ ] Visualization: token-level heatmap with turn boundaries annotated
 
 ---
 
@@ -444,6 +507,21 @@ with model.trace("The capital of France is Paris and it is beautiful") as trace:
 ## Tier 5: Agentic Interpretability — mlxterp as a Research Platform
 
 The key insight: mlxterp shouldn't just be a library that humans call — it should be a **toolkit that frontier models can operate autonomously**. A Claude Code agent (or any LLM agent) should be able to pick up mlxterp and run a full interpretability investigation: form hypotheses, design experiments, run analyses, interpret results, and iterate.
+
+This is directly inspired by **Karpathy's AutoResearch** (March 2026, 72k+ GitHub stars) — a pattern where an LLM coding agent autonomously runs ML experiments in a ratchet loop: propose hypothesis → edit code → run experiment → keep if improved → repeat. AutoResearch achieved ~100 experiments/night and discovered novel architecture optimizations. We adapt this pattern from "optimize training loss" to "discover and validate circuits."
+
+**The AutoResearch Three-File Contract, adapted for interpretability:**
+
+| AutoResearch (Karpathy) | AutoInterp (mlxterp) |
+|---|---|
+| `prepare.py` — data prep (immutable) | `setup.py` — load model + SAE + dataset (immutable) |
+| `train.py` — agent edits this | `experiment.py` — agent writes experiments here |
+| `program.md` — human instructions | `program.md` — research question + constraints |
+| `val_bpb` — single scalar metric | flexible: logit_diff, KL, patching effect, circuit completeness |
+| `results.tsv` — experiment log | `results.jsonl` — structured experiment log with metadata |
+| git ratchet (keep if val_bpb improves) | git ratchet (keep if finding is informative) |
+
+**Key difference**: AutoResearch optimizes a single scalar. Interpretability research is *exploratory* — the agent must decide what's "informative" (a null result that rules out a hypothesis is valuable). The ratchet keeps findings, not just improvements.
 
 This makes mlxterp unique — no other interpretability library is designed for agent-driven research.
 
@@ -599,9 +677,135 @@ report = feature_investigation(
 
 ---
 
-### 22. Agent-Driven Auto-Interpretability
+### 22. AutoInterp — Karpathy-Style Ratchet Loop for Interpretability
 
-**Why**: The most powerful use of frontier models + local interpretability: Claude investigates your local MLX model autonomously. It forms hypotheses about what circuits do, tests them via mlxterp tools, and produces interpretability reports — all without human intervention.
+**Why**: Karpathy's AutoResearch showed that an LLM agent can run ~100 ML experiments overnight on a single GPU with no human in the loop. The same pattern applies to interpretability: an agent can systematically explore a model's internals, running patching/ablation/feature experiments in a continuous loop, building up a picture of the model's circuits.
+
+The key adaptation: instead of optimizing `val_bpb`, the agent explores and documents circuits. Instead of "keep if loss improves," it's "keep if the finding is informative" (including null results that rule out hypotheses).
+
+**The Three-File Contract for AutoInterp**:
+
+```
+autointerpret/
+├── setup.py        # IMMUTABLE — loads model, SAE, dataset, defines metrics
+├── experiment.py   # AGENT-OWNED — agent writes experiments here
+├── program.md      # HUMAN-OWNED — research question + constraints
+├── results.jsonl   # Append-only experiment log
+└── findings/       # Accumulated findings (kept commits)
+    ├── 001_logit_lens_overview.json
+    ├── 002_patching_layer5_important.json
+    └── ...
+```
+
+**`setup.py`** (immutable, defines the research environment):
+
+```python
+from mlxterp import InterpretableModel
+from mlxterp.autointerpret import MetricRegistry
+
+# Load model (human configures once)
+model = InterpretableModel("mlx-community/Llama-3.2-1B-Instruct-4bit")
+
+# Define metrics the agent can use
+metrics = MetricRegistry()
+metrics.register("logit_diff", lambda clean, patched, target, foil:
+    patched[0, -1, target] - patched[0, -1, foil])
+metrics.register("kl_div", ...)
+metrics.register("prob_change", ...)
+
+# Dataset for feature analysis
+dataset = [...]  # loaded once
+```
+
+**`program.md`** (human writes, agent reads):
+
+```markdown
+# Research Program
+
+## Question
+How does Llama-3.2-1B recall factual associations (e.g., "The Eiffel Tower is in" → "Paris")?
+
+## Constraints
+- Focus on layers 0-15, all attention heads and MLPs
+- Use activation patching first, then narrow with attribution patching
+- Each experiment should complete in under 2 minutes
+- Keep experiments that identify important components OR rule them out
+- Do NOT modify setup.py
+
+## Current Priorities
+1. Run logit lens to identify where "Paris" first appears
+2. Run activation patching across all layers to find critical ones
+3. For critical layers, identify specific heads via head-level patching
+4. Test causal path between identified heads
+
+## Stop When
+- You have identified a circuit (set of components) sufficient for the task
+- OR you have run 100 experiments without convergence
+```
+
+**The Ratchet Loop** (runs autonomously):
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. Read program.md for research priorities              │
+│  2. Read results.jsonl for past findings                 │
+│  3. Propose hypothesis based on what's known/unknown     │
+│  4. Write experiment in experiment.py                    │
+│  5. Run experiment (time-boxed, e.g., 2 min max)        │
+│  6. Parse results → structured JSON                      │
+│  7. Decide: informative? → append to results.jsonl       │
+│             + git commit to findings/                     │
+│             uninformative? → git revert, log, move on    │
+│  8. Update mental model of the circuit                   │
+│  9. Loop to step 1                                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Proposed API — two modes of operation**:
+
+**Mode 1: Claude Code native (zero orchestration)**
+Just open Claude Code in the `autointerpret/` directory and say "read program.md and start." The agent uses mlxterp directly, same as Karpathy's approach. No custom orchestration code needed.
+
+**Mode 2: Programmatic agent (for automation/scaling)**
+
+```python
+from mlxterp.autointerpret import AutoInterpret
+
+runner = AutoInterpret(
+    model=model,
+    program="program.md",          # research question
+    llm="claude-sonnet-4-6",      # reasoning model
+    max_experiments=100,
+    time_per_experiment=120,        # seconds
+    output_dir="findings/",
+)
+
+# Run the loop (can run overnight)
+report = runner.run()
+
+# Or run a single iteration
+result = runner.step()
+```
+
+**Deliverables**:
+- [ ] `autointerpret/` scaffold generator (`mlxterp init-autointerpret`)
+- [ ] `setup.py` template with model loading and metric registry
+- [ ] `program.md` template with example research questions
+- [ ] `AutoInterpret` runner class with the ratchet loop
+- [ ] Experiment time-boxing (kill if exceeds budget)
+- [ ] `results.jsonl` structured logging with schema
+- [ ] Git integration (commit findings, revert failures)
+- [ ] Summary generation after N experiments
+- [ ] "Zero orchestration" mode (works with any LLM coding agent reading program.md)
+- [ ] Claude Code integration guide
+
+**Reference**: [Karpathy AutoResearch](https://github.com/karpathy/autoresearch) (March 2026), Anthropic automated interpretability
+
+---
+
+### 23. Agent-Driven Auto-Interpretability (Interactive Mode)
+
+**Why**: AutoInterp (#22) is the overnight batch mode. This is the interactive mode — the user has a conversation with Claude Code, and Claude uses mlxterp MCP tools to investigate on-the-fly. "What's going on in layer 5?" → Claude runs the analysis and explains.
 
 **Integration with Claude Code**:
 
@@ -683,8 +887,8 @@ report.next_steps        # suggested follow-up experiments
 | **Phase 5a** | Conversation Trace (#15) + Turn-Level Patching (#16) | Multi-turn analysis |
 | **Phase 5b** | Conversation Attention (#17) + Granularity Control (#18) | Complete conversation interp |
 | **Phase 6a** | Structured Output (#20) + MCP Server (#19) | Agent-ready infrastructure |
-| **Phase 6b** | Research Workflows (#21) + Auto-Interp Agent (#22) | Autonomous interpretability |
-| **Phase 6c** | Report Generation (#23) | Shareable research outputs |
+| **Phase 6b** | Research Workflows (#21) + AutoInterp Ratchet (#22) | Karpathy-style overnight interpretability |
+| **Phase 6c** | Interactive Agent (#23) + Report Generation (#24) | On-demand + shareable research outputs |
 | **Phase 7** | ACDC (#11) + Trainable Interventions (#12) | Automated circuit discovery |
 | **Frontier** | CLTs (#13) + Auto-Interp (#14) | Research frontier |
 
@@ -717,6 +921,7 @@ report.next_steps        # suggested follow-up experiments
 | **Turn-level patching** | No | No | No | No | **Built-in** |
 | **MCP server / agent tools** | No | No | No | No | **Built-in** |
 | **Autonomous interp agent** | No | No | No | No | **Built-in** |
+| **AutoResearch-style ratchet** | No | No | No | No | **Built-in** |
 | **Structured output for agents** | No | No | No | No | **Built-in** |
 | Apple Silicon native | No | No | No | Yes | Yes |
 | Model-agnostic | No (specific models) | Yes | Yes (HF) | Yes (any MLX) | Yes |
@@ -727,3 +932,4 @@ report.next_steps        # suggested follow-up experiments
 2. **Conversation-level interpretability**: No other library supports multi-turn analysis, turn-level patching, or cross-turn attention visualization. This is an unoccupied niche — all existing libraries analyze single prompts.
 3. **Agent-driven interpretability**: No other library is designed to be operated by frontier models. The MCP server + structured output + research workflows combination means Claude Code (or any LLM agent) can autonomously run interpretability investigations on local models. This transforms mlxterp from a tool into a **research platform**.
 4. **Full vertical integration**: From raw tracing to autonomous reports — load model, trace, patch, discover circuits, train SAEs, analyze features, generate reports — all in one library, all on one machine.
+5. **AutoResearch for interpretability**: Karpathy's ratchet loop adapted for circuit discovery — run 100 interpretability experiments overnight, accumulate findings in git, produce a circuit report by morning. No other library offers this.
