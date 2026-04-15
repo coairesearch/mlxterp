@@ -49,17 +49,21 @@ def resolve_component(
         # Direct component name (e.g., "self_attn.q_proj")
         suffixes = [component]
 
-    # resid_post / resid_pre: no suffix, match the layer itself
+    # resid_post / resid_pre: prefer the explicit suffixed key, fall back to layer itself
     if suffixes is None:
+        # First try explicit .resid_pre / .resid_post keys
         for container in LAYER_CONTAINERS:
             for prefix in ["model.model.", "model.", ""]:
-                key = f"{prefix}{container}.{layer_idx}"
-                if key in activations:
-                    return key
-                # Also check for .resid_pre / .resid_post suffixed keys
-                resid_key = f"{key}.{component}"
+                resid_key = f"{prefix}{container}.{layer_idx}.{component}"
                 if resid_key in activations:
                     return resid_key
+        # Fall back to the bare layer key (for resid_post = layer output)
+        if component == "resid_post":
+            for container in LAYER_CONTAINERS:
+                for prefix in ["model.model.", "model.", ""]:
+                    key = f"{prefix}{container}.{layer_idx}"
+                    if key in activations:
+                        return key
         return None
 
     # Component with suffixes

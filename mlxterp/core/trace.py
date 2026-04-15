@@ -398,6 +398,10 @@ class Trace:
                 """Intercept calls to capture activations"""
                 ctx = TraceContext.current()
 
+                # Capture input as resid_pre (first positional arg is the hidden state)
+                if ctx is not None and args:
+                    ctx.activations[f"{self._layer_name}.resid_pre"] = args[0]
+
                 # Call the original layer
                 result = self._wrapped_layer(*args, **kwargs)
 
@@ -407,8 +411,9 @@ class Trace:
                     if ctx.should_intervene(self._layer_name):
                         result = ctx.apply_intervention(self._layer_name, result)
 
-                    # Store activation
+                    # Store activation (also as resid_post for clarity)
                     ctx.activations[self._layer_name] = result
+                    ctx.activations[f"{self._layer_name}.resid_post"] = result
 
                 return result
 
