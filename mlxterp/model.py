@@ -249,6 +249,29 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
             interpretable_model=self,
         )
 
+    def causal_trace(
+        self,
+        clean_input: Union[str, mx.array],
+        corrupted_input: Union[str, mx.array],
+    ):
+        """
+        Create a causal trace context for clean/corrupted paired analysis.
+
+        Usage:
+            with model.causal_trace("correct text", "corrupted text") as ct:
+                ct.patch("layers.5.mlp")
+                effect = ct.metric(logit_diff, correct_token=123, incorrect_token=456)
+
+        Args:
+            clean_input: Clean/correct input
+            corrupted_input: Corrupted/counterfactual input
+
+        Returns:
+            CausalTrace context manager
+        """
+        from .causal.trace import CausalTrace
+        return CausalTrace(self, clean_input, corrupted_input)
+
     def _forward(self, inputs: mx.array) -> mx.array:
         """
         Execute the model forward pass.
