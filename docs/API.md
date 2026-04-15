@@ -9,6 +9,12 @@ Complete API reference for mlxterp.
 3. [Interventions](#interventions)
 4. [Utilities](#utilities)
 5. [Core Components](#core-components)
+6. [Metrics](#metrics)
+7. [Analysis Results](#analysis-results)
+8. [Causal Interpretability](#causal-interpretability)
+9. [Text Generation](#text-generation)
+10. [Conversation Analysis](#conversation-analysis)
+11. [Visualization](#visualization-patching--dashboards)
 
 ---
 
@@ -2137,6 +2143,731 @@ print(tokens)  # ['<|begin_of_text|>', 'Hello', ' world']
 token_ids = model.encode("Hello world")
 tokens = model.to_str_tokens(token_ids)
 print(tokens)  # ['<|begin_of_text|>', 'Hello', ' world']
+```
+
+---
+
+---
+
+## Metrics
+
+Module: `mlxterp.metrics`
+
+Standard metrics for causal interpretability experiments. All metrics follow a uniform signature so they can be passed to any patching or attribution function.
+
+### Metric Signature
+
+Every metric function accepts:
+
+```python
+def metric(
+    patched_logits: mx.array,    # Logits after intervention
+    clean_logits: mx.array,      # Logits from clean/correct input
+    corrupted_logits: mx.array,  # Logits from corrupted input
+    **kwargs,                    # Metric-specific parameters
+) -> float:
+```
+
+Returns a scalar where **higher = more recovery of clean behavior**.
+
+### Function: `logit_diff`
+
+Measures recovery of the logit difference between correct and incorrect tokens. The standard metric for Indirect Object Identification (IOI) and factual recall tasks.
+
+```python
+from mlxterp.metrics import logit_diff
+
+effect = logit_diff(
+    patched_logits, clean_logits, corrupted_logits,
+    correct_token=tokenizer.encode(" Paris")[0],
+    incorrect_token=tokenizer.encode(" Rome")[0],
+)
+# Returns: 1.0 = fully recovered, 0.0 = no change, <0 = worse
+```
+
+**Required kwargs:**
+
+- **correct_token** (`int`): Token ID for the correct completion
+- **incorrect_token** (`int`): Token ID for the incorrect completion
+
+### Function: `kl_divergence`
+
+KL divergence between patched and clean output distributions. Returns negative KL so higher = better (consistent with other metrics).
+
+```python
+from mlxterp.metrics import kl_divergence
+
+effect = kl_divergence(patched_logits, clean_logits, corrupted_logits)
+# Returns: 0.0 when distributions match, negative when they diverge
+```
+
+### Function: `cross_entropy_diff`
+
+Difference in cross-entropy loss: `CE(corrupted) - CE(patched)`. Positive means patching reduced the loss.
+
+```python
+from mlxterp.metrics import cross_entropy_diff
+
+effect = cross_entropy_diff(
+    patched_logits, clean_logits, corrupted_logits,
+    target_token=42,  # Optional: auto-detected from clean argmax if omitted
+)
+```
+
+### Function: `l2_distance`
+
+Normalized L2 recovery: what fraction of the clean-corrupted distance was recovered.
+
+```python
+from mlxterp.metrics import l2_distance
+
+effect = l2_distance(patched_logits, clean_logits, corrupted_logits)
+# Returns: 1.0 = patched == clean, 0.0 = patched == corrupted
+```
+
+### Function: `cosine_distance`
+
+Cosine similarity recovery between patched and clean outputs.
+
+```python
+from mlxterp.metrics import cosine_distance
+
+effect = cosine_distance(patched_logits, clean_logits, corrupted_logits)
+```
+
+### Function: `get_metric`
+
+Look up a metric by name string, or pass through a callable.
+
+```python
+from mlxterp.metrics import get_metric
+
+fn = get_metric("logit_diff")  # Returns the logit_diff function
+fn = get_metric("l2")          # Alias for l2_distance
+fn = get_metric(my_custom_fn)  # Returns my_custom_fn unchanged
+```
+
+**Available names:** `"logit_diff"`, `"kl_divergence"` / `"kl"`, `"cross_entropy_diff"` / `"ce_diff"`, `"l2_distance"` / `"l2"`, `"cosine_distance"` / `"cosine"`
+
+---
+
+## Analysis Results
+
+Module: `mlxterp.results`
+
+Every analysis function returns a structured result object with `.data`, `.summary()`, `.to_json()`, `.to_markdown()`, and `.plot()` methods. This enables both human consumption and agent/programmatic processing.
+
+### Class: `AnalysisResult`
+
+Base class for all results.
+
+```python
+from mlxterp.results import AnalysisResult
+
+result.data          # Dict of structured results
+result.metadata      # Dict of parameters and timing
+result.result_type   # String tag (e.g., "patching", "dla")
+result.summary()     # One-line human-readable summary
+result.to_json()     # JSON serialization (handles mx.array)
+result.to_markdown() # Markdown report
+result.plot()        # Visualization (subclass-specific)
+```
+
+### Class: `PatchingResult`
+
+Returned by `activation_patching()` and `path_patching()`.
+
+```python
+from mlxterp.causal import activation_patching
+
+result = activation_patching(model, clean, corrupted, component="mlp")
+
+result.effect_matrix   # mx.array: (n_layers,) or (n_layers, n_heads)
+result.layers          # List of layer indices tested
+result.component       # "mlp", "attn", "resid_post", "attn_head"
+result.metric_name     # Name of the metric used
+
+# Get top components by effect size
+top = result.top_components(k=5)
+# Returns: [(layer_idx, effect_score), ...]
+
+# Visualize
+result.plot()  # Heatmap or bar chart depending on dimensions
+```
+
+### Class: `AttributionResult`
+
+Returned by `attribution_patching()`.
+
+```python
+result.attribution_scores  # mx.array of scores
+result.layers              # Layers analyzed
+result.component           # Component analyzed
+result.method              # "finite_diff" or "gradient"
+```
+
+### Class: `DLAResult`
+
+Returned by `direct_logit_attribution()`.
+
+```python
+result.head_contributions  # mx.array: per-attention-layer contributions
+result.mlp_contributions   # mx.array: per-MLP contributions
+result.target_token        # Token ID being attributed
+result.target_token_str    # String representation
+```
+
+### Class: `GenerationResult`
+
+Returned by `model.generate()`.
+
+```python
+result.text           # Generated text string
+result.tokens         # List of token IDs
+result.token_logits   # Per-token logit distributions (optional)
+result.prompt         # Original prompt
+```
+
+### Class: `ConversationResult`
+
+Returned by `ConversationTrace.to_result()`.
+
+```python
+result.turns                 # List of turn metadata dicts
+result.cross_turn_attention  # Turn x turn attention matrix
+```
+
+### Class: `CircuitResult`
+
+Returned by `acdc()` and `feature_circuit()`.
+
+```python
+result.nodes      # List of component names in the circuit
+result.edges      # List of (sender, receiver, weight) tuples
+result.threshold  # Pruning threshold used
+
+# Export as graph
+graph = result.to_graph()
+# Returns: {"nodes": [{"id": ...}], "edges": [{"source": ..., "target": ..., "weight": ...}]}
+```
+
+---
+
+## Causal Interpretability
+
+Module: `mlxterp.causal`
+
+The causal package provides tools for understanding which model components cause specific behaviors, from activation patching to automated circuit discovery.
+
+### Function: `activation_patching`
+
+The core causal analysis tool. Patches clean activations into corrupted forward passes to identify important components.
+
+```python
+from mlxterp.causal import activation_patching
+
+# Layer-level patching: which layers matter?
+result = activation_patching(
+    model,
+    clean="The Eiffel Tower is in",
+    corrupted="The Colosseum is in",
+    component="mlp",        # "resid_post", "attn", "mlp", "attn_head"
+    metric="l2",            # or "logit_diff", "kl", "cosine", "ce_diff"
+    layers=range(16),       # None = all layers
+)
+
+print(result.summary())
+result.plot()  # Heatmap of effects
+
+# Position-level: which token positions matter?
+result = activation_patching(
+    model, clean, corrupted,
+    component="mlp",
+    positions=[3, 4, 5],   # Only patch these positions
+)
+
+# Head-level: which attention heads matter?
+result = activation_patching(
+    model, clean, corrupted,
+    component="attn_head",  # Returns (n_layers, n_heads) matrix
+    metric="logit_diff",
+    metric_kwargs={"correct_token": 123, "incorrect_token": 456},
+)
+top = result.top_components(k=10)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model` | `InterpretableModel` | required | Model to analyze |
+| `clean` | `str` or `mx.array` | required | Clean/correct input |
+| `corrupted` | `str` or `mx.array` | required | Corrupted/counterfactual input |
+| `layers` | `List[int]` | `None` (all) | Layer indices to test |
+| `component` | `str` | `"resid_post"` | Component to patch |
+| `metric` | `str` or `Callable` | `"l2"` | Metric function |
+| `positions` | `List[int]` | `None` (all) | Token positions to patch |
+| `metric_kwargs` | `Dict` | `None` | Extra metric arguments |
+| `verbose` | `bool` | `False` | Print progress |
+
+### Class: `CausalTrace`
+
+Declarative context manager for paired clean/corrupted analysis. Reduces boilerplate for multi-component patching experiments.
+
+```python
+from mlxterp.causal import CausalTrace
+
+# Using model.causal_trace() shortcut:
+with model.causal_trace(clean_text, corrupted_text) as ct:
+    # Register patches declaratively
+    ct.patch("layers.5.mlp")
+    ct.patch("layers.7.self_attn", positions=[3, 4])
+
+    # Compute metric with all patches applied at once
+    effect = ct.metric("l2")
+    print(f"Combined patching effect: {effect:.4f}")
+
+# Access clean activations
+with model.causal_trace(clean, corrupted) as ct:
+    act = ct.get_clean_activation("mlp", layer=5)
+    print(f"Clean MLP output shape: {act.shape}")
+
+# Use canonical names with layer parameter
+with model.causal_trace(clean, corrupted) as ct:
+    ct.patch("mlp", layer=0)
+    ct.patch("attn", layer=3)
+    effect = ct.metric("logit_diff", correct_token=100, incorrect_token=200)
+```
+
+**Methods:**
+
+- `ct.patch(component, positions=None, layer=None)` - Register a component to be patched from clean into corrupted
+- `ct.metric(metric_fn, **kwargs)` - Apply all registered patches and compute metric
+- `ct.get_clean_activation(component, layer=None)` - Retrieve a specific clean activation
+
+### Class: `ResidualStreamAccessor`
+
+Structured access to the residual stream at each layer, decomposed into attention and MLP contributions.
+
+```python
+from mlxterp.causal import ResidualStreamAccessor
+
+with model.trace("The capital of France is") as trace:
+    pass
+
+rs = ResidualStreamAccessor(trace.activations)
+
+# Access residual stream at each layer
+pre = rs.resid_pre(5)            # Input to layer 5
+post = rs.resid_post(5)          # Output of layer 5
+mid = rs.resid_mid(5)            # Between attn and MLP (= pre + attn)
+
+# Component contributions (raw, before residual add)
+attn_out = rs.attn_contribution(5)   # What attention added
+mlp_out = rs.mlp_contribution(5)     # What MLP added
+total = rs.layer_contribution(5)     # Total: post - pre
+
+# Discover available layers
+layers = rs.available_layers()       # [0, 1, 2, ..., 15]
+```
+
+**Key invariants:**
+
+- `resid_pre[i] == resid_post[i-1]` (layer i's input is layer i-1's output)
+- `resid_post[i] == resid_pre[i] + attn_contribution[i] + mlp_contribution[i]` (approximately, for standard transformer blocks)
+- `resid_mid[i] == resid_pre[i] + attn_contribution[i]`
+
+### Function: `direct_logit_attribution`
+
+Decomposes the final logit prediction into per-component contributions by projecting each component's output through the unembedding matrix.
+
+```python
+from mlxterp.causal import direct_logit_attribution
+
+result = direct_logit_attribution(
+    model,
+    text="The capital of France is",
+    target_token=None,     # Auto-detect from argmax, or specify token ID
+    position=-1,           # Token position to analyze (-1 = last)
+    layers=None,           # None = all layers
+)
+
+print(f"Target: '{result.target_token_str}' (id={result.target_token})")
+print(f"Attention contributions: {result.head_contributions}")
+print(f"MLP contributions: {result.mlp_contributions}")
+print(result.summary())
+```
+
+### Function: `attribution_patching`
+
+Fast approximation of activation patching using gradient-based finite differences. ~100x faster than brute-force patching.
+
+```python
+from mlxterp.causal import attribution_patching
+
+result = attribution_patching(
+    model,
+    clean="The Eiffel Tower is in",
+    corrupted="The Colosseum is in",
+    component="resid_post",  # "resid_post", "attn", "mlp"
+    metric="l2",
+    n_projections=1,         # More projections = more accurate, slower
+    eps=1e-3,                # Perturbation size
+)
+
+print(result.summary())
+# Scores approximate brute-force patching effects
+print(f"Attribution scores: {result.attribution_scores}")
+```
+
+### Function: `path_patching`
+
+Measures the causal effect along a specific sender-receiver path by freezing all other components.
+
+```python
+from mlxterp.causal import path_patching
+
+result = path_patching(
+    model,
+    clean="The Eiffel Tower is in",
+    corrupted="The Colosseum is in",
+    sender="layers.7.self_attn",    # Source component
+    receiver="layers.9.self_attn",  # Target component
+    metric="l2",
+)
+
+print(f"Path effect: {result.data['effect']:.4f}")
+print(f"Components frozen: {result.data['n_frozen']}")
+```
+
+### Function: `acdc`
+
+Automated Circuit Discovery. Iteratively tests each component's importance and prunes those below a threshold.
+
+```python
+from mlxterp.causal import acdc
+
+circuit = acdc(
+    model,
+    clean="The Eiffel Tower is in",
+    corrupted="The Colosseum is in",
+    threshold=0.01,           # Minimum effect to keep a node
+    components=["attn", "mlp"],  # Component types to test
+    layers=range(16),
+)
+
+print(circuit.summary())
+# "Circuit: 8 nodes, 12 edges (threshold=0.01)"
+
+print("Important components:", circuit.nodes)
+graph = circuit.to_graph()  # For visualization
+```
+
+### Feature-Level Analysis
+
+#### Function: `feature_patching`
+
+Compute causal effect of individual SAE features via ablation.
+
+```python
+from mlxterp.causal.feature_circuits import feature_patching
+
+effects = feature_patching(
+    model, sae,
+    text="The capital of France is",
+    layer=10,
+    component="mlp",
+    top_k=20,          # Test top-20 most active features
+)
+# Returns: {feature_id: effect_score, ...}
+
+# Or test specific features
+effects = feature_patching(
+    model, sae, text,
+    layer=10,
+    feature_ids=[42, 123, 456],
+)
+```
+
+#### Function: `feature_circuit`
+
+Discover which SAE features are causally important.
+
+```python
+from mlxterp.causal.feature_circuits import feature_circuit
+
+circuit = feature_circuit(
+    model, sae, text,
+    layer=10,
+    component="mlp",
+    threshold=0.01,
+    top_k=50,
+)
+
+print(circuit.nodes)  # ["L10.mlp.f42", "L10.mlp.f123", ...]
+```
+
+---
+
+## Text Generation
+
+Module: `mlxterp.generation`
+
+Generate text token-by-token with optional interventions applied at each step.
+
+### Function: `generate` / `model.generate()`
+
+```python
+# Basic generation
+result = model.generate(
+    "The capital of France is",
+    max_tokens=20,
+    temperature=0.0,     # 0.0 = greedy (deterministic)
+)
+print(result.text)       # " Paris. Paris is..."
+print(result.tokens)     # [3681, 13, 3681, ...]
+
+# Generation with interventions (steering)
+from mlxterp.core.intervention import add_vector, scale
+
+result = model.generate(
+    "I think the movie was",
+    max_tokens=30,
+    temperature=0.7,
+    interventions={"layers.5": add_vector(positive_sentiment_vec)},
+)
+
+# Top-k and top-p sampling
+result = model.generate(
+    prompt,
+    max_tokens=50,
+    temperature=0.8,
+    top_k=40,
+    top_p=0.95,
+)
+
+# Callback for custom stopping or logging
+def my_callback(step, token_id, logits):
+    print(f"Step {step}: token {token_id}")
+    return step >= 20  # Return True to stop
+
+result = model.generate(
+    prompt,
+    max_tokens=100,
+    callback=my_callback,
+    stop_tokens=[tokenizer.eos_token_id],
+)
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | `str`, `mx.array`, `List[int]` | required | Input prompt |
+| `max_tokens` | `int` | `50` | Maximum tokens to generate |
+| `temperature` | `float` | `0.0` | Sampling temperature (0 = greedy) |
+| `top_k` | `int` | `0` | Top-k filtering (0 = disabled) |
+| `top_p` | `float` | `1.0` | Nucleus sampling (1.0 = disabled) |
+| `interventions` | `Dict[str, Callable]` | `None` | Interventions applied at each step |
+| `stop_tokens` | `List[int]` | `None` | Token IDs that stop generation |
+| `callback` | `Callable` | `None` | `callback(step, token_id, logits) -> bool` |
+
+**Returns:** `GenerationResult`
+
+---
+
+## Conversation Analysis
+
+Module: `mlxterp.conversation`
+
+Tools for analyzing multi-turn conversations: turn detection, per-turn activation slicing, and cross-turn attention analysis.
+
+### Class: `Turn`
+
+Represents a single turn in a conversation with token position tracking.
+
+```python
+from mlxterp.conversation import Turn
+
+turn = Turn(
+    index=0,
+    role="user",
+    full_start=0,       # Including template tokens
+    full_end=15,
+    content_start=3,    # Content only (no role markers)
+    content_end=12,
+)
+
+turn.content_positions    # slice(3, 12)
+turn.full_positions       # slice(0, 15)
+turn.n_content_tokens     # 9
+turn.n_total_tokens       # 15
+```
+
+### Class: `TurnList`
+
+Container with indexing, slicing, and role-based filtering.
+
+```python
+from mlxterp.conversation import TurnList
+
+turns[0]                        # First turn
+turns[0:2]                      # First two turns (returns TurnList)
+turns.by_role("user")           # All user turns
+turns.by_role("assistant")      # All assistant turns
+turns.roles                     # ["user", "assistant", "user"]
+turns.content_positions()       # All content positions across turns
+```
+
+### Function: `detect_turns`
+
+Detect turn boundaries in a tokenized conversation using the chat template.
+
+```python
+from mlxterp.conversation import detect_turns
+
+messages = [
+    {"role": "user", "content": "My name is Alice."},
+    {"role": "assistant", "content": "Nice to meet you!"},
+    {"role": "user", "content": "What's my name?"},
+]
+
+turns = detect_turns(tokenizer, messages)
+print(turns)
+# [Turn(0, role='user', content=5:12, full=1:13),
+#  Turn(1, role='assistant', content=16:22, full=13:23),
+#  Turn(2, role='user', content=26:31, full=23:32)]
+```
+
+Supports Llama 3, ChatML (Qwen), Gemma, and custom templates.
+
+### Class: `ConversationTrace`
+
+Context manager for multi-turn conversation analysis. Uses `model.conversation_trace()`.
+
+```python
+conversation = [
+    {"role": "user", "content": "The capital of France is Paris."},
+    {"role": "assistant", "content": "That's correct!"},
+    {"role": "user", "content": "What's the capital of France?"},
+]
+
+with model.conversation_trace(conversation) as ct:
+    # Access turns
+    print(ct.turns)  # TurnList with 3 turns
+
+    # Get activations for a specific turn
+    turn0_act = ct.get_turn_activation(0, "layers.5")
+    turn2_act = ct.get_turn_activation(2, "layers.5")
+
+    # Cross-turn attention: how much does each turn attend to others?
+    cross_attn = ct.cross_turn_attention(layer=5, head=0)
+    # Returns: (3, 3) matrix — entry [i,j] = avg attention from turn i to turn j
+
+    # Convert to structured result
+    result = ct.to_result()
+    print(result.summary())
+```
+
+**Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `ct.get_turn_activation(turn_idx, component, content_only=True)` | Get activations sliced to a turn |
+| `ct.cross_turn_attention(layer, head)` | Turn x turn attention aggregation |
+| `ct.to_result()` | Convert to `ConversationResult` |
+
+---
+
+## Visualization (Patching & Dashboards)
+
+### Patching Visualization
+
+Module: `mlxterp.visualization.patching`
+
+```python
+from mlxterp.visualization.patching import plot_patching_result, plot_patching_comparison
+
+# Plot a single result (auto-detects bar chart vs heatmap)
+result = activation_patching(model, clean, corrupted, component="mlp")
+fig = result.plot()  # Calls plot_patching_result internally
+
+# Or call directly with options
+fig = plot_patching_result(result, figsize=(14, 6), cmap="viridis", title="MLP Patching")
+
+# Compare multiple results side by side
+results = [
+    activation_patching(model, clean, corrupted, component="mlp"),
+    activation_patching(model, clean, corrupted, component="attn"),
+]
+fig = plot_patching_comparison(results, title="MLP vs Attention")
+```
+
+### Feature Dashboards
+
+Module: `mlxterp.visualization.dashboards`
+
+Generate standalone HTML dashboards for SAE feature analysis.
+
+```python
+from mlxterp.visualization.dashboards import (
+    max_activating_examples,
+    feature_activation_histogram,
+    generate_feature_dashboard_html,
+)
+
+# Find texts that maximally activate a feature
+examples = max_activating_examples(
+    model, sae,
+    feature_id=42,
+    texts=dataset_texts,
+    layer=10,
+    component="mlp",
+    top_k=10,
+)
+# Returns: [{"text": "...", "activation_value": 0.95, "token_position": 7}, ...]
+
+# Compute activation distribution
+histogram = feature_activation_histogram(
+    model, sae,
+    feature_id=42,
+    texts=dataset_texts,
+    layer=10,
+)
+# Returns: {"bin_edges": [...], "counts": [...], "mean": 0.12, "std": 0.3, "sparsity": 0.85}
+
+# Generate HTML dashboard
+html = generate_feature_dashboard_html(42, examples, histogram)
+with open("feature_42_dashboard.html", "w") as f:
+    f.write(html)
+```
+
+### Intervention: `replace_at_positions`
+
+Position-level activation patching (added to `mlxterp.core.intervention`).
+
+```python
+from mlxterp.core.intervention import replace_at_positions
+
+# Only replace positions 3 and 4, leaving all others unchanged
+with model.trace(input, interventions={
+    "layers.5.mlp": replace_at_positions(clean_activation, [3, 4])
+}):
+    output = model.output.save()
+```
+
+### Function: `resolve_component`
+
+Cross-architecture component name resolution (in `mlxterp.core.module_resolver`).
+
+```python
+from mlxterp.core.module_resolver import resolve_component
+
+# Find the actual activation key for "mlp" at layer 5
+key = resolve_component("mlp", 5, trace.activations)
+# Returns: "model.model.layers.5.mlp" (Llama) or "model.h.5.mlp" (GPT-2)
+
+# Canonical names: "resid_post", "resid_pre", "attn", "mlp", "attn_head"
 ```
 
 ---
