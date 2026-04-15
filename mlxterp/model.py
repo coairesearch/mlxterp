@@ -272,6 +272,36 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
         from .causal.trace import CausalTrace
         return CausalTrace(self, clean_input, corrupted_input)
 
+    def conversation_trace(self, messages):
+        """
+        Create a conversation trace for multi-turn analysis.
+
+        Args:
+            messages: List of {"role": str, "content": str} dicts
+
+        Returns:
+            ConversationTrace context manager
+        """
+        from .conversation.trace import ConversationTrace
+        return ConversationTrace(self, messages)
+
+    def generate(self, prompt, max_tokens=50, temperature=0.0, **kwargs):
+        """
+        Generate text with optional interventions.
+
+        Args:
+            prompt: Input text, token array, or token list
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0 = greedy)
+            **kwargs: Additional args passed to generation.generate()
+
+        Returns:
+            GenerationResult
+        """
+        from .generation import generate
+        return generate(self, prompt, max_tokens=max_tokens,
+                       temperature=temperature, **kwargs)
+
     def _forward(self, inputs: mx.array) -> mx.array:
         """
         Execute the model forward pass.
