@@ -6,8 +6,89 @@ final norm, lm_head) across different model architectures using fallback chains.
 """
 
 import mlx.nn as nn
-from typing import Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any
 import warnings
+
+
+# Canonical component names to architecture-specific module names
+COMPONENT_ALIASES = {
+    "resid_post": None,  # The full layer output (no component suffix)
+    "resid_pre": None,   # Input to the layer (captured separately)
+    "attn": ["self_attn", "attn", "attention"],
+    "mlp": ["mlp", "feed_forward", "ff"],
+    "attn_head": ["self_attn", "attn", "attention"],  # Same as attn, post-processed per-head
+    "self_attn": ["self_attn", "attn", "attention"],
+}
+
+# Layer container names across architectures
+LAYER_CONTAINERS = ["layers", "h", "blocks", "decoder.layers"]
+
+
+def resolve_component(
+    component: str,
+    layer_idx: int,
+    activations: Dict[str, Any],
+) -> Optional[str]:
+    """
+    Resolve a canonical component name to the actual activation key.
+
+    Tries multiple path patterns across architectures (Llama, GPT-2, etc.)
+    and returns the first matching key found in the activations dict.
+
+    Args:
+        component: Canonical name: "resid_post", "attn", "mlp", "attn_head", etc.
+        layer_idx: Layer index
+        activations: Dict of activation keys from a trace
+
+    Returns:
+        The matching activation key, or None if not found.
+    """
+    if component in COMPONENT_ALIASES:
+        suffixes = COMPONENT_ALIASES[component]
+    else:
+        # Direct component name (e.g., "self_attn.q_proj")
+        suffixes = [component]
+
+    # resid_post / resid_pre: no suffix, match the layer itself
+    if suffixes is None:
+        for container in LAYER_CONTAINERS:
+            for prefix in ["model.model.", "model.", ""]:
+                key = f"{prefix}{container}.{layer_idx}"
+                if key in activations:
+                    return key
+                # Also check for .resid_pre / .resid_post suffixed keys
+                resid_key = f"{key}.{component}"
+                if resid_key in activations:
+                    return resid_key
+        return None
+
+    # Component with suffixes
+    for suffix in suffixes:
+        for container in LAYER_CONTAINERS:
+            for prefix in ["model.model.", "model.", ""]:
+                key = f"{prefix}{container}.{layer_idx}.{suffix}"
+                if key in activations:
+                    return key
+    return None
+
+
+def resolve_intervention_key(activation_key: str) -> str:
+    """
+    Convert an activation key to an intervention key by stripping model prefixes.
+
+    The intervention system uses shorter keys without "model." or "model.model." prefixes.
+
+    Args:
+        activation_key: Full activation key (e.g., "model.model.layers.5.mlp")
+
+    Returns:
+        Intervention key (e.g., "layers.5.mlp")
+    """
+    if activation_key.startswith("model.model."):
+        return activation_key[12:]
+    elif activation_key.startswith("model."):
+        return activation_key[6:]
+    return activation_key
 
 
 class ModuleResolver:
