@@ -53,6 +53,26 @@ The library follows a **functional-first paradigm** that aligns with MLX's desig
 
 ## Development Guidelines
 
+### Quality Gates (MANDATORY)
+
+**Every change MUST pass these gates before being committed:**
+
+1. **95% Test Coverage**: `pytest --cov=mlxterp --cov-fail-under=95`
+   - Every new function/class MUST have corresponding tests
+   - Tests must verify behavior, not just that code runs without errors
+   - Use `pytest-cov` — coverage is enforced in `pyproject.toml`
+
+2. **Docs-Code Sync**: `python scripts/check_docs_sync.py`
+   - Every public API must be documented in `docs/`
+   - Every import example in docs must resolve against current code
+   - When you change a function signature, update the docs in the same commit
+   - Zero tolerance for docs describing features that don't exist
+
+3. **Workflow**: For every new feature or fix:
+   - Write the test first (or alongside the implementation)
+   - Update docs in the same commit as the code change
+   - Run `pytest` and `python scripts/check_docs_sync.py` before committing
+
 ### Repository Cleanliness (CRITICAL)
 
 **ALWAYS keep the repository clean and professional:**
