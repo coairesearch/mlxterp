@@ -119,6 +119,64 @@ class TokenizerMixin:
 
         return self.tokenizer.decode([token_id])
 
+    def to_str_tokens(
+        self,
+        input: Union[str, List[int], mx.array],
+        prepend_bos: bool = False,
+    ) -> List[str]:
+        """
+        Convert text or token IDs to a list of token strings.
+
+        This is useful for visualization and analysis where you need
+        the string representation of each token.
+
+        Args:
+            input: Either a text string or list of token IDs
+            prepend_bos: Whether to prepend BOS token (only for string input)
+
+        Returns:
+            List of token strings
+
+        Raises:
+            ValueError: If no tokenizer is available
+
+        Example:
+            >>> # From text
+            >>> tokens = model.to_str_tokens("Hello world")
+            >>> print(tokens)  # ['Hello', ' world']
+            >>>
+            >>> # From token IDs
+            >>> tokens = model.to_str_tokens([15496, 1917])
+            >>> print(tokens)  # ['Hello', ' world']
+        """
+        if self.tokenizer is None:
+            raise ValueError(
+                "No tokenizer available. Pass a tokenizer to InterpretableModel "
+                "or load a model that includes one."
+            )
+
+        # Convert to token IDs if string
+        if isinstance(input, str):
+            token_ids = self.tokenizer.encode(input)
+            if prepend_bos and hasattr(self.tokenizer, 'bos_token_id'):
+                bos_id = self.tokenizer.bos_token_id
+                if bos_id is not None and (not token_ids or token_ids[0] != bos_id):
+                    token_ids = [bos_id] + token_ids
+        elif isinstance(input, mx.array):
+            token_ids = input.tolist()
+            if isinstance(token_ids[0], list):
+                # Handle batched input - use first sequence
+                token_ids = token_ids[0]
+        else:
+            token_ids = list(input)
+
+        # Convert each token to string
+        str_tokens = []
+        for token_id in token_ids:
+            str_tokens.append(self.tokenizer.decode([token_id]))
+
+        return str_tokens
+
     @property
     def vocab_size(self) -> Optional[int]:
         """

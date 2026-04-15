@@ -92,6 +92,7 @@ nav:
       - "5. Induction Heads": tutorials/05_induction_heads.md
       - "6. Sparse Autoencoders": tutorials/06_sparse_autoencoders.md
   - Guides & Procedures:
+      - Attention Visualization: guides/attention_visualization.md
       - Activation Patching: guides/activation_patching.md
       - Dictionary Learning: guides/dictionary_learning.md
       - SAE Evaluation & Analysis: guides/sae_evaluation.md
