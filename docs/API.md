@@ -15,6 +15,10 @@ Complete API reference for mlxterp.
 9. [Text Generation](#text-generation)
 10. [Conversation Analysis](#conversation-analysis)
 11. [Visualization](#visualization-patching--dashboards)
+12. [Research Workflows](#research-workflows)
+13. [AutoInterp Ratchet Loop](#autointerp-ratchet-loop)
+14. [Automated Interpretability](#automated-interpretability)
+15. [Report Generation](#report-generation)
 
 ---
 
@@ -2868,6 +2872,222 @@ key = resolve_component("mlp", 5, trace.activations)
 # Returns: "model.model.layers.5.mlp" (Llama) or "model.h.5.mlp" (GPT-2)
 
 # Canonical names: "resid_post", "resid_pre", "attn", "mlp", "attn_head"
+```
+
+---
+
+---
+
+## Research Workflows
+
+Module: `mlxterp.workflows`
+
+Pre-built multi-step pipelines that chain analysis tools and return `WorkflowResult`.
+
+### Function: `behavior_localization`
+
+Pipeline: DLA → MLP patching → attention patching → head-level patching.
+
+```python
+from mlxterp.workflows import behavior_localization
+
+result = behavior_localization(
+    model, clean, corrupted,
+    metric="l2",
+    steps=["dla", "patch_mlp", "patch_attn", "patch_heads"],
+    top_k=5,
+    verbose=True,
+)
+
+print(result.narrative)
+mlp_result = result.get_step("patch_mlp")
+```
+
+### Function: `circuit_discovery`
+
+Pipeline: attribution patching → activation patching → ACDC.
+
+```python
+from mlxterp.workflows import circuit_discovery
+
+result = circuit_discovery(model, clean, corrupted, threshold=0.01)
+circuit = result.get_step("acdc")
+```
+
+### Function: `feature_investigation`
+
+Pipeline: find active SAE features → ablation → max-activating examples.
+
+```python
+from mlxterp.workflows import feature_investigation
+
+result = feature_investigation(model, sae, text, layer=10, dataset=texts)
+```
+
+### Class: `WorkflowResult`
+
+Returned by all workflow functions. Extends `AnalysisResult`.
+
+```python
+result.steps            # List of (step_name, step_result) tuples
+result.narrative        # Human-readable investigation narrative
+result.get_step(name)   # Get a specific step's result
+result.to_markdown()    # Full markdown report with all steps
+```
+
+---
+
+## AutoInterp Ratchet Loop
+
+Module: `mlxterp.autointerpret`
+
+Karpathy AutoResearch-style three-file contract for overnight interpretability experiments.
+
+### Function: `init_autointerpret`
+
+Generate a project scaffold:
+
+```python
+from mlxterp.autointerpret import init_autointerpret
+
+path = init_autointerpret(
+    output_dir="my_investigation",
+    model_name="mlx-community/Llama-3.2-1B-Instruct-4bit",
+    research_question="How does this model recall factual associations?",
+    max_experiments=100,
+)
+# Creates: setup.py, experiment.py, program.md, CLAUDE.md, results.jsonl, findings/
+```
+
+### Class: `AutoInterpret`
+
+Programmatic runner for automated experiment loops:
+
+```python
+from mlxterp.autointerpret import AutoInterpret
+
+runner = AutoInterpret(model=model, output_dir="exp", max_experiments=50)
+
+entry = runner.run_experiment(
+    name="mlp_scan",
+    fn=lambda: activation_patching(model, clean, corrupted, component="mlp"),
+    hypothesis="MLPs are important",
+)
+
+print(runner.summary())
+print(f"Done: {runner.is_done}")
+```
+
+### Class: `MetricRegistry`
+
+Registry of metrics for experiment use:
+
+```python
+from mlxterp.autointerpret import MetricRegistry
+
+metrics = MetricRegistry()
+metrics.register("logit_diff", fn, description="Logit difference recovery")
+print(metrics.names)       # ["logit_diff"]
+fn = metrics.get("logit_diff")
+```
+
+### Class: `ExperimentLog`
+
+Append-only JSONL experiment logging:
+
+```python
+from mlxterp.autointerpret import ExperimentLog, ExperimentEntry
+
+log = ExperimentLog("results.jsonl")
+log.append(ExperimentEntry(hypothesis="H1", method="patching", conclusion="Found it"))
+print(log.summary())
+```
+
+---
+
+## Automated Interpretability
+
+Module: `mlxterp.auto_interp`
+
+LLM-generated SAE feature descriptions using Claude API.
+
+### Function: `auto_label_feature`
+
+Label a single feature using max-activating examples + LLM:
+
+```python
+from mlxterp.auto_interp import auto_label_feature
+
+label = auto_label_feature(model, sae, feature_id=42, texts=dataset, layer=10)
+print(f"{label.label}: {label.description} ({label.confidence:.0%})")
+```
+
+### Function: `auto_label_features`
+
+Batch label multiple features:
+
+```python
+from mlxterp.auto_interp import auto_label_features
+
+labels = auto_label_features(model, sae, texts=dataset, layer=10, top_k_features=20)
+```
+
+### Function: `sensitivity_test`
+
+Validate a label via sensitivity testing:
+
+```python
+from mlxterp.auto_interp import sensitivity_test
+
+label = sensitivity_test(model, sae, label, test_texts=validation, layer=10)
+print(f"Passed: {label.sensitivity_passed}")
+```
+
+### Class: `FeatureLabel`
+
+Dataclass for labeled features:
+
+```python
+label.feature_id         # int
+label.label              # "short_label"
+label.description        # "Longer description"
+label.confidence         # 0.0-1.0
+label.evidence           # List of max-activating examples
+label.sensitivity_passed # True/False/None
+```
+
+**Requires:** `pip install anthropic` and `ANTHROPIC_API_KEY` env var.
+
+---
+
+## Report Generation
+
+Module: `mlxterp.reports`
+
+Generate shareable reports from any `AnalysisResult`.
+
+### Function: `generate_report`
+
+```python
+from mlxterp.reports import generate_report
+
+# Markdown
+md = generate_report(result, title="My Analysis", format="markdown")
+
+# HTML with embedded plots
+html = generate_report(results, title="Report", format="html", include_plots=True)
+
+# Include raw JSON appendix
+md = generate_report(result, include_json=True)
+```
+
+### Function: `save_report`
+
+```python
+from mlxterp.reports import save_report
+
+save_report(result, "report.md", title="Analysis Report")
+save_report(result, "report.html", title="HTML Report")  # Auto-detects format
 ```
 
 ---

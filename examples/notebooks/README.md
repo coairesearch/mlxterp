@@ -12,6 +12,7 @@ Work through these in order to learn mlxterp's causal interpretability tools:
 | 2 | [02_circuit_discovery.ipynb](02_circuit_discovery.ipynb) | Residual stream analysis, Direct Logit Attribution, attribution patching, path patching, ACDC |
 | 3 | [03_generation.ipynb](03_generation.ipynb) | Text generation (greedy, temperature, top-k, top-p), interventions during generation, steering vectors, callbacks |
 | 4 | [04_conversation_analysis.ipynb](04_conversation_analysis.ipynb) | Turn detection, TurnList filtering, ConversationTrace, per-turn activations, cross-turn attention |
+| 5 | [05_agentic_interp.ipynb](05_agentic_interp.ipynb) | Research workflows, AutoInterp ratchet loop, automated feature labeling, report generation |
 
 ## Other Notebooks
 

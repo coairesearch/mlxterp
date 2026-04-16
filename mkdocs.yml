@@ -96,6 +96,7 @@ nav:
       - Circuit Discovery: guides/circuit_discovery.md
       - Text Generation: guides/generation.md
       - Conversation Analysis: guides/conversation_analysis.md
+      - Agentic Interpretability: guides/agentic_interp.md
       - Attention Visualization: guides/attention_visualization.md
       - Activation Patching (Legacy): guides/activation_patching.md
       - Dictionary Learning: guides/dictionary_learning.md
