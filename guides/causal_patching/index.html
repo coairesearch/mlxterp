@@ -12,9 +12,13 @@
         <meta name="author" content="Sigurd Schacht">
       
       
-        <link rel="canonical" href="https://github.com/coairesearch/mlxterp/dev/PERFORMANCE_NOTES/">
+        <link rel="canonical" href="https://github.com/coairesearch/mlxterp/guides/causal_patching/">
       
       
+        <link rel="prev" href="../../tutorials/06_sparse_autoencoders/">
+      
+      
+        <link rel="next" href="../circuit_discovery/">
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
@@ -22,7 +26,7 @@
     
     
       
-        <title>SAE Training Performance Notes - mlxterp</title>
+        <title>Causal Patching - mlxterp</title>
       
     
     
@@ -76,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#sae-training-performance-notes" class="md-skip">
+        <a href="#causal-patching-guide" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              SAE Training Performance Notes
+              Causal Patching
             
           </span>
         </div>
@@ -288,11 +292,13 @@
         
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../guides/causal_patching/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   Guides & Procedures
@@ -786,8 +792,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -796,14 +804,12 @@
       
       
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
         
-          
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
           <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
@@ -817,7 +823,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             Guides & Procedures
@@ -828,10 +834,30 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../guides/causal_patching/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Causal Patching
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   <span class="md-ellipsis">
@@ -840,6 +866,116 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      Quick Start
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#components-you-can-patch" class="md-nav__link">
+    <span class="md-ellipsis">
+      Components You Can Patch
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-a-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      Choosing a Metric
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-example-factual-recall" class="md-nav__link">
+    <span class="md-ellipsis">
+      Complete Example: Factual Recall
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#position-level-patching" class="md-nav__link">
+    <span class="md-ellipsis">
+      Position-Level Patching
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-causaltrace-for-multi-patch-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using CausalTrace for Multi-Patch Experiments
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-logit_diff-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using logit_diff Metric
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#working-with-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Working with Results
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interpreting-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interpreting Results
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -852,7 +988,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/circuit_discovery/" class="md-nav__link">
+      <a href="../circuit_discovery/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -873,7 +1009,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/generation/" class="md-nav__link">
+      <a href="../generation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -894,7 +1030,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/conversation_analysis/" class="md-nav__link">
+      <a href="../conversation_analysis/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -915,7 +1051,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/agentic_interp/" class="md-nav__link">
+      <a href="../agentic_interp/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -936,7 +1072,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/attention_visualization/" class="md-nav__link">
+      <a href="../attention_visualization/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -957,7 +1093,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/activation_patching/" class="md-nav__link">
+      <a href="../activation_patching/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -978,7 +1114,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/dictionary_learning/" class="md-nav__link">
+      <a href="../dictionary_learning/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -999,7 +1135,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/sae_evaluation/" class="md-nav__link">
+      <a href="../sae_evaluation/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1020,7 +1156,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/sae_feature_analysis/" class="md-nav__link">
+      <a href="../sae_feature_analysis/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -1250,117 +1386,90 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#training-speed-expectations" class="md-nav__link">
+  <a href="#overview" class="md-nav__link">
     <span class="md-ellipsis">
-      Training Speed Expectations
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Training Speed Expectations">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#streaming-mode-current-approach" class="md-nav__link">
-    <span class="md-ellipsis">
-      Streaming Mode (Current Approach)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#pre-collected-activations-mode" class="md-nav__link">
-    <span class="md-ellipsis">
-      Pre-Collected Activations Mode
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#dead-feature-behavior" class="md-nav__link">
-    <span class="md-ellipsis">
-      Dead Feature Behavior
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Dead Feature Behavior">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#timeline" class="md-nav__link">
-    <span class="md-ellipsis">
-      Timeline
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ghost-gradient-activation" class="md-nav__link">
-    <span class="md-ellipsis">
-      Ghost Gradient Activation
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#recommended-configs" class="md-nav__link">
-    <span class="md-ellipsis">
-      Recommended Configs
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Recommended Configs">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#fast-testing-small-model-pre-collected" class="md-nav__link">
-    <span class="md-ellipsis">
-      Fast Testing (small model, pre-collected)
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#production-large-model-streaming" class="md-nav__link">
-    <span class="md-ellipsis">
-      Production (large model, streaming)
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#trade-offs" class="md-nav__link">
-    <span class="md-ellipsis">
-      Trade-offs
+      Overview
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#current-training-analysis" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
-      Current Training Analysis
+      Quick Start
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#components-you-can-patch" class="md-nav__link">
+    <span class="md-ellipsis">
+      Components You Can Patch
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-a-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      Choosing a Metric
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-example-factual-recall" class="md-nav__link">
+    <span class="md-ellipsis">
+      Complete Example: Factual Recall
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#position-level-patching" class="md-nav__link">
+    <span class="md-ellipsis">
+      Position-Level Patching
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-causaltrace-for-multi-patch-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using CausalTrace for Multi-Patch Experiments
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-logit_diff-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      Using logit_diff Metric
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#working-with-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Working with Results
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interpreting-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interpreting Results
     </span>
   </a>
   
@@ -1384,130 +1493,199 @@
   
 
 
-<h1 id="sae-training-performance-notes">SAE Training Performance Notes<a class="headerlink" href="#sae-training-performance-notes" title="Permanent link">&para;</a></h1>
-<h2 id="training-speed-expectations">Training Speed Expectations<a class="headerlink" href="#training-speed-expectations" title="Permanent link">&para;</a></h2>
-<h3 id="streaming-mode-current-approach">Streaming Mode (Current Approach)<a class="headerlink" href="#streaming-mode-current-approach" title="Permanent link">&para;</a></h3>
-<p><strong>Speed</strong>: 1.5-2.0 it/s on 8B models
-<strong>Memory</strong>: Low (no activation caching)
-<strong>Use case</strong>: Large datasets that don't fit in memory</p>
-<p><strong>Why is it slow?</strong>
-Each iteration requires:
-1. Model forward pass (~500ms for 8B model)
-2. SAE training step (~100ms)
-3. Total: ~600ms/it = <strong>1.6 it/s</strong></p>
-<p>This is <strong>EXPECTED and CORRECT</strong> for streaming mode.</p>
-<h3 id="pre-collected-activations-mode">Pre-Collected Activations Mode<a class="headerlink" href="#pre-collected-activations-mode" title="Permanent link">&para;</a></h3>
-<p><strong>Speed</strong>: 80-200 it/s (50-100x faster!)
-<strong>Memory</strong>: High (all activations in RAM)
-<strong>Use case</strong>: Smaller datasets (&lt;10GB activations)</p>
-<p><strong>Why is it fast?</strong>
-- Model traced ONCE upfront
-- Each iteration is just SAE forward/backward
-- No repeated model traces</p>
-<h2 id="dead-feature-behavior">Dead Feature Behavior<a class="headerlink" href="#dead-feature-behavior" title="Permanent link">&para;</a></h2>
-<h3 id="timeline">Timeline<a class="headerlink" href="#timeline" title="Permanent link">&para;</a></h3>
+<h1 id="causal-patching-guide">Causal Patching Guide<a class="headerlink" href="#causal-patching-guide" title="Permanent link">&para;</a></h1>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>Causal patching (also called activation patching or interchange intervention) is the most widely used technique in mechanistic interpretability. It answers: <strong>which model components are causally responsible for a specific behavior?</strong></p>
+<p>The idea: run the model on a clean input and a corrupted input. Then re-run the corrupted input, but <em>patch</em> in the clean activation at a specific component. If the model recovers the clean behavior, that component was causally important.</p>
+<h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span> <span class="nn">mlxterp</span> <span class="kn">import</span> <span class="n">InterpretableModel</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span> <span class="nn">mlxterp.causal</span> <span class="kn">import</span> <span class="n">activation_patching</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="s2">&quot;mlx-community/Llama-3.2-1B-Instruct-4bit&quot;</span><span class="p">)</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># Which layers&#39; MLPs are important for factual recall?</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">result</span> <span class="o">=</span> <span class="n">activation_patching</span><span class="p">(</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">model</span><span class="p">,</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    <span class="n">clean</span><span class="o">=</span><span class="s2">&quot;The Eiffel Tower is in Paris&quot;</span><span class="p">,</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    <span class="n">corrupted</span><span class="o">=</span><span class="s2">&quot;The Colosseum is in Paris&quot;</span><span class="p">,</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="n">component</span><span class="o">=</span><span class="s2">&quot;mlp&quot;</span><span class="p">,</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="n">metric</span><span class="o">=</span><span class="s2">&quot;l2&quot;</span><span class="p">,</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="p">)</span>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">result</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>  <span class="c1"># Bar chart of per-layer effects</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">top_components</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">))</span>
+</span></code></pre></div>
+<h2 id="components-you-can-patch">Components You Can Patch<a class="headerlink" href="#components-you-can-patch" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Step Range</th>
-<th>Dead Features</th>
-<th>Why</th>
+<th>Component</th>
+<th>Description</th>
+<th>Result Shape</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>0-1000</td>
-<td>95-99%</td>
-<td>Ghost grads not active yet</td>
+<td><code>"resid_post"</code></td>
+<td>Full layer output (residual stream)</td>
+<td><code>(n_layers,)</code></td>
 </tr>
 <tr>
-<td>1000-5000</td>
-<td>85-95%</td>
-<td>Ghost grads starting to work</td>
+<td><code>"attn"</code></td>
+<td>Attention module output</td>
+<td><code>(n_layers,)</code></td>
 </tr>
 <tr>
-<td>5000-10000</td>
-<td>70-85%</td>
-<td>Ghost grads fully active</td>
+<td><code>"mlp"</code></td>
+<td>MLP/feed-forward output</td>
+<td><code>(n_layers,)</code></td>
 </tr>
 <tr>
-<td>10000+</td>
-<td>60-75%</td>
-<td>Equilibrium reached</td>
+<td><code>"attn_head"</code></td>
+<td>Individual attention heads</td>
+<td><code>(n_layers, n_heads)</code></td>
 </tr>
 </tbody>
 </table>
-<h3 id="ghost-gradient-activation">Ghost Gradient Activation<a class="headerlink" href="#ghost-gradient-activation" title="Permanent link">&para;</a></h3>
-<p>Ghost gradients don't activate immediately because:
-1. Need <code>dead_feature_window</code> steps of history (default: 1000)
-2. Features need time to prove they're actually dead
-3. Early training is unstable, better to let network settle</p>
-<p><strong>OLD default</strong>: 5000 steps (very conservative)
-<strong>NEW default</strong>: 1000 steps (faster activation)</p>
-<h2 id="recommended-configs">Recommended Configs<a class="headerlink" href="#recommended-configs" title="Permanent link">&para;</a></h2>
-<h3 id="fast-testing-small-model-pre-collected">Fast Testing (small model, pre-collected)<a class="headerlink" href="#fast-testing-small-model-pre-collected" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SAEConfig</span><span class="p">(</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">expansion_factor</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="n">k</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">num_epochs</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">dead_feature_window</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>  <span class="c1"># Start ghost grads early</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="p">)</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Pre-collect activations</span>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">activations</span> <span class="o">=</span> <span class="n">collect_activations</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">texts</span><span class="p">)</span>  <span class="c1"># Fast!</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">sae</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">activations</span><span class="p">)</span>  <span class="c1"># 80-200 it/s</span>
-</span></code></pre></div>
-<h3 id="production-large-model-streaming">Production (large model, streaming)<a class="headerlink" href="#production-large-model-streaming" title="Permanent link">&para;</a></h3>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">config</span> <span class="o">=</span> <span class="n">SAEConfig</span><span class="p">(</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">expansion_factor</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">k</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">num_epochs</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>  <span class="c1"># Smaller for memory</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">text_batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>  <span class="c1"># Stream in chunks</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">dead_feature_window</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>  <span class="c1"># Reasonable balance</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">use_ghost_grads</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">)</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
-</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># Streaming mode</span>
-</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="n">sae</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">train_sae</span><span class="p">(</span>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">dataset</span><span class="o">=</span><span class="n">texts</span><span class="p">,</span>  <span class="c1"># 1.5-2.0 it/s (EXPECTED)</span>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="n">config</span><span class="o">=</span><span class="n">config</span>
+<h2 id="choosing-a-metric">Choosing a Metric<a class="headerlink" href="#choosing-a-metric" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best For</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"l2"</code></td>
+<td>General purpose</td>
+<td>Normalized recovery, 0-1 scale</td>
+</tr>
+<tr>
+<td><code>"logit_diff"</code></td>
+<td>IOI, factual recall</td>
+<td>Requires <code>correct_token</code> and <code>incorrect_token</code></td>
+</tr>
+<tr>
+<td><code>"kl"</code></td>
+<td>Distribution comparison</td>
+<td>Negative KL (higher = better)</td>
+</tr>
+<tr>
+<td><code>"cosine"</code></td>
+<td>Direction-sensitive tasks</td>
+<td>Good for large vocabularies</td>
+</tr>
+<tr>
+<td><code>"ce_diff"</code></td>
+<td>Loss-based evaluation</td>
+<td>Positive = patching reduced loss</td>
+</tr>
+</tbody>
+</table>
+<h2 id="complete-example-factual-recall">Complete Example: Factual Recall<a class="headerlink" href="#complete-example-factual-recall" title="Permanent link">&para;</a></h2>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span> <span class="nn">mlxterp</span> <span class="kn">import</span> <span class="n">InterpretableModel</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span> <span class="nn">mlxterp.causal</span> <span class="kn">import</span> <span class="n">activation_patching</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span> <span class="nn">mlxterp.metrics</span> <span class="kn">import</span> <span class="n">logit_diff</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">model</span> <span class="o">=</span> <span class="n">InterpretableModel</span><span class="p">(</span><span class="s2">&quot;mlx-community/Llama-3.2-1B-Instruct-4bit&quot;</span><span class="p">)</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="n">clean</span> <span class="o">=</span> <span class="s2">&quot;The Eiffel Tower is in&quot;</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="n">corrupted</span> <span class="o">=</span> <span class="s2">&quot;The Colosseum is in&quot;</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Step 1: Find important layers (MLP)</span>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="n">mlp_result</span> <span class="o">=</span> <span class="n">activation_patching</span><span class="p">(</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="n">model</span><span class="p">,</span> <span class="n">clean</span><span class="p">,</span> <span class="n">corrupted</span><span class="p">,</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>    <span class="n">component</span><span class="o">=</span><span class="s2">&quot;mlp&quot;</span><span class="p">,</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>    <span class="n">metric</span><span class="o">=</span><span class="s2">&quot;l2&quot;</span><span class="p">,</span>
 </span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="p">)</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="c1"># Step 2: Find important layers (attention)</span>
+</span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="n">attn_result</span> <span class="o">=</span> <span class="n">activation_patching</span><span class="p">(</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>    <span class="n">model</span><span class="p">,</span> <span class="n">clean</span><span class="p">,</span> <span class="n">corrupted</span><span class="p">,</span>
+</span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>    <span class="n">component</span><span class="o">=</span><span class="s2">&quot;attn&quot;</span><span class="p">,</span>
+</span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    <span class="n">metric</span><span class="o">=</span><span class="s2">&quot;l2&quot;</span><span class="p">,</span>
+</span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="p">)</span>
+</span><span id="__span-1-23"><a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>
+</span><span id="__span-1-24"><a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="c1"># Step 3: For the most important layer, find which heads matter</span>
+</span><span id="__span-1-25"><a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="n">top_layer</span> <span class="o">=</span> <span class="n">mlp_result</span><span class="o">.</span><span class="n">top_components</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-1-26"><a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Most important MLP layer: </span><span class="si">{</span><span class="n">top_layer</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-1-27"><a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>
+</span><span id="__span-1-28"><a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="n">head_result</span> <span class="o">=</span> <span class="n">activation_patching</span><span class="p">(</span>
+</span><span id="__span-1-29"><a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>    <span class="n">model</span><span class="p">,</span> <span class="n">clean</span><span class="p">,</span> <span class="n">corrupted</span><span class="p">,</span>
+</span><span id="__span-1-30"><a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>    <span class="n">component</span><span class="o">=</span><span class="s2">&quot;attn_head&quot;</span><span class="p">,</span>
+</span><span id="__span-1-31"><a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>    <span class="n">metric</span><span class="o">=</span><span class="s2">&quot;l2&quot;</span><span class="p">,</span>
+</span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>    <span class="n">layers</span><span class="o">=</span><span class="p">[</span><span class="n">top_layer</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">top_layer</span><span class="p">,</span> <span class="n">top_layer</span> <span class="o">+</span> <span class="mi">1</span><span class="p">],</span>
+</span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="p">)</span>
+</span><span id="__span-1-34"><a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>
+</span><span id="__span-1-35"><a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="n">head_result</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>  <span class="c1"># Heatmap: layer x head</span>
 </span></code></pre></div>
-<h2 id="trade-offs">Trade-offs<a class="headerlink" href="#trade-offs" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Approach</th>
-<th>Speed</th>
-<th>Memory</th>
-<th>Use When</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Streaming</td>
-<td>1-2 it/s</td>
-<td>Low</td>
-<td>&gt;10k texts, large models</td>
-</tr>
-<tr>
-<td>Pre-collected</td>
-<td>80-200 it/s</td>
-<td>High</td>
-<td>&lt;5k texts, small models</td>
-</tr>
-</tbody>
-</table>
-<h2 id="current-training-analysis">Current Training Analysis<a class="headerlink" href="#current-training-analysis" title="Permanent link">&para;</a></h2>
-<p>Your current training:
-- Model: Qwen3-8B (8B params)
-- Dataset: 10,000 texts
-- Mode: Streaming
-- <strong>Speed: 1.8 it/s ✓ EXPECTED</strong>
-- <strong>Dead features: 98% at step 200</strong> - Ghost grads activate at step 1000+</p>
-<p><strong>This is working as designed!</strong> Ghost gradients will reduce dead features once they activate.</p>
+<h2 id="position-level-patching">Position-Level Patching<a class="headerlink" href="#position-level-patching" title="Permanent link">&para;</a></h2>
+<p>Identify which token positions carry the critical information:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">activation_patching</span><span class="p">(</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">model</span><span class="p">,</span> <span class="n">clean</span><span class="p">,</span> <span class="n">corrupted</span><span class="p">,</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">component</span><span class="o">=</span><span class="s2">&quot;mlp&quot;</span><span class="p">,</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">positions</span><span class="o">=</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">],</span>  <span class="c1"># Only patch these positions</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="using-causaltrace-for-multi-patch-experiments">Using CausalTrace for Multi-Patch Experiments<a class="headerlink" href="#using-causaltrace-for-multi-patch-experiments" title="Permanent link">&para;</a></h2>
+<p>When you want to patch multiple components simultaneously:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">with</span> <span class="n">model</span><span class="o">.</span><span class="n">causal_trace</span><span class="p">(</span><span class="n">clean</span><span class="p">,</span> <span class="n">corrupted</span><span class="p">)</span> <span class="k">as</span> <span class="n">ct</span><span class="p">:</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="c1"># Patch MLP at layers 5-7 and attention at layer 9</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">ct</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">&quot;layers.5.mlp&quot;</span><span class="p">)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">ct</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">&quot;layers.6.mlp&quot;</span><span class="p">)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">ct</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">&quot;layers.7.mlp&quot;</span><span class="p">)</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">ct</span><span class="o">.</span><span class="n">patch</span><span class="p">(</span><span class="s2">&quot;layers.9.self_attn&quot;</span><span class="p">)</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="c1"># All patches applied at once</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="n">effect</span> <span class="o">=</span> <span class="n">ct</span><span class="o">.</span><span class="n">metric</span><span class="p">(</span><span class="s2">&quot;l2&quot;</span><span class="p">)</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Combined effect: </span><span class="si">{</span><span class="n">effect</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="using-logit_diff-metric">Using logit_diff Metric<a class="headerlink" href="#using-logit_diff-metric" title="Permanent link">&para;</a></h2>
+<p>For tasks with a clear correct/incorrect answer:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">correct_token</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot; Paris&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">incorrect_token</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">tokenizer</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot; Rome&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">activation_patching</span><span class="p">(</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">model</span><span class="p">,</span> <span class="n">clean</span><span class="p">,</span> <span class="n">corrupted</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">component</span><span class="o">=</span><span class="s2">&quot;mlp&quot;</span><span class="p">,</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="n">metric</span><span class="o">=</span><span class="s2">&quot;logit_diff&quot;</span><span class="p">,</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">metric_kwargs</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="s2">&quot;correct_token&quot;</span><span class="p">:</span> <span class="n">correct_token</span><span class="p">,</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>        <span class="s2">&quot;incorrect_token&quot;</span><span class="p">:</span> <span class="n">incorrect_token</span><span class="p">,</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="p">},</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="p">)</span>
+</span></code></pre></div>
+<h2 id="working-with-results">Working with Results<a class="headerlink" href="#working-with-results" title="Permanent link">&para;</a></h2>
+<p>Every patching function returns a <code>PatchingResult</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Summary</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary</span><span class="p">())</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Top components</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="k">for</span> <span class="n">layer</span><span class="p">,</span> <span class="n">effect</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">top_components</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  Layer </span><span class="si">{</span><span class="n">layer</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">effect</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># JSON export (for programmatic use)</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">json_data</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">to_json</span><span class="p">()</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="c1"># Markdown report</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">to_markdown</span><span class="p">())</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="c1"># Raw effect matrix</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">effect_matrix</span><span class="p">)</span>       <span class="c1"># mx.array</span>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">effect_matrix</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span>  <span class="c1"># Python list</span>
+</span></code></pre></div>
+<h2 id="interpreting-results">Interpreting Results<a class="headerlink" href="#interpreting-results" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>High positive effect</strong>: This component is important. Patching the clean activation into the corrupted run recovered the clean behavior.</li>
+<li><strong>Near-zero effect</strong>: This component doesn't contribute to the difference between clean and corrupted.</li>
+<li><strong>Negative effect</strong>: Patching this component made things worse (rare, but indicates interference).</li>
+</ul>
+<div class="admonition info">
+<p class="admonition-title">Rule of Thumb</p>
+<p>Start with <code>component="mlp"</code> and <code>component="attn"</code> at all layers to get a broad picture. Then zoom into specific layers with <code>component="attn_head"</code> for head-level analysis.</p>
+</div>
 
 
 
