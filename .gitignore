@@ -86,3 +86,8 @@ scratch.*
 
 # Blog
 blog/
+
+# Example run artifacts
+autointerpret_dryrun/
+demo_output/
+selftest/

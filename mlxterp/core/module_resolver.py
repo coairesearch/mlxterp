@@ -124,6 +124,9 @@ class ModuleResolver:
         "model.model.wte",          # GPT-2 double-wrapped
         "embeddings.word_embeddings", # BERT style
         "transformer.wte",          # GPT with transformer wrapper
+        "embed_in",                 # Pythia / GPT-NeoX direct
+        "model.embed_in",           # Pythia single-wrapped
+        "model.model.embed_in",     # Pythia double-wrapped
     ]
 
     NORM_PATHS = [
@@ -133,7 +136,9 @@ class ModuleResolver:
         "ln_f",                     # GPT-2 style
         "model.ln_f",               # GPT-2 with model wrapper
         "transformer.ln_f",         # GPT with transformer wrapper
-        "final_layer_norm",         # Some models
+        "final_layer_norm",         # Pythia / GPT-NeoX direct
+        "model.final_layer_norm",   # Pythia single-wrapped
+        "model.model.final_layer_norm",  # Pythia double-wrapped
     ]
 
     LM_HEAD_PATHS = [
@@ -142,6 +147,9 @@ class ModuleResolver:
         "model.model.lm_head",      # mlx-lm double-wrapped
         "output",                   # Some Llama implementations
         "head",                     # Alternative naming
+        "embed_out",                # Pythia / GPT-NeoX direct
+        "model.embed_out",          # Pythia single-wrapped
+        "model.model.embed_out",    # Pythia double-wrapped
     ]
 
     def __init__(

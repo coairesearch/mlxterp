@@ -399,8 +399,13 @@ class Trace:
                 ctx = TraceContext.current()
 
                 # Capture input as resid_pre (first positional arg is the hidden state)
+                # Only capture for float arrays — skip int token IDs at embedding layer
                 if ctx is not None and args:
-                    ctx.activations[f"{self._layer_name}.resid_pre"] = args[0]
+                    first_arg = args[0]
+                    if hasattr(first_arg, 'dtype') and first_arg.dtype in (
+                        mx.float16, mx.float32, mx.bfloat16
+                    ):
+                        ctx.activations[f"{self._layer_name}.resid_pre"] = first_arg
 
                 # Call the original layer
                 result = self._wrapped_layer(*args, **kwargs)
