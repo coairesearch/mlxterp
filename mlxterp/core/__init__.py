@@ -7,6 +7,7 @@ from .intervention import (
     scale,
     add_vector,
     replace_with,
+    replace_at_positions,
     clamp,
     noise,
     InterventionComposer,
@@ -16,6 +17,9 @@ from .module_resolver import (
     ModuleResolver,
     normalize_layer_key,
     find_layer_key_pattern,
+    resolve_component,
+    resolve_intervention_key,
+    COMPONENT_ALIASES,
 )
 
 __all__ = [

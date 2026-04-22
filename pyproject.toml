@@ -133,7 +133,10 @@ ignore = [
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
-addopts = "-v --cov=mlxterp --cov-report=term-missing"
+addopts = "-v --cov=mlxterp --cov-report=term-missing --cov-fail-under=95 -m 'not slow'"
+markers = [
+    "slow: marks tests as slow end-to-end tests requiring real model downloads (deselected by default; run with -m slow or --no-cov -m slow)",
+]
 
 [tool.coverage.run]
 source = ["mlxterp"]
@@ -143,6 +146,8 @@ omit = [
 ]
 
 [tool.coverage.report]
+fail_under = 95
+show_missing = true
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

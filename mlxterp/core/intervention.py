@@ -175,6 +175,69 @@ def noise(std: float = 0.1) -> Callable[[mx.array], mx.array]:
     return _noise
 
 
+def replace_at_positions(
+    value: mx.array, positions: list
+) -> Callable[[mx.array], mx.array]:
+    """
+    Replace activation at specific token positions only.
+
+    Useful for position-level activation patching where you only want to
+    patch specific token positions, leaving others unchanged.
+
+    Args:
+        value: Replacement values (must have compatible shape)
+        positions: List of token position indices to replace
+
+    Returns:
+        Intervention function
+
+    Example:
+        # Only patch positions 3 and 4
+        with model.trace(input, interventions={
+            "layers.5.mlp": replace_at_positions(clean_act, [3, 4])
+        }):
+            ...
+    """
+    def _replace_at(x: mx.array) -> mx.array:
+        result = mx.array(x)  # copy
+        src = value
+        # Handle shape alignment
+        if src.shape != x.shape and src.ndim >= 2 and x.ndim >= 2:
+            seq_axis = 1 if x.ndim == 3 else 0
+            src_len = src.shape[seq_axis]
+            x_len = x.shape[seq_axis]
+            if src_len != x_len:
+                # Align at end
+                offset = x_len - src_len
+                adjusted_positions = [p - offset for p in positions if p >= offset]
+                if x.ndim == 3:
+                    for p in positions:
+                        src_p = p - offset if offset > 0 else p
+                        if 0 <= src_p < src_len and 0 <= p < x_len:
+                            result[:, p:p+1, :] = src[:, src_p:src_p+1, :]
+                else:
+                    for p in positions:
+                        src_p = p - offset if offset > 0 else p
+                        if 0 <= src_p < src_len and 0 <= p < x_len:
+                            result[p:p+1, :] = src[src_p:src_p+1, :]
+                return result
+
+        # Same shape: direct position replacement
+        if x.ndim == 3:
+            for p in positions:
+                if 0 <= p < x.shape[1]:
+                    result[:, p:p+1, :] = src[:, p:p+1, :]
+        elif x.ndim == 2:
+            for p in positions:
+                if 0 <= p < x.shape[0]:
+                    result[p:p+1, :] = src[p:p+1, :]
+        else:
+            # 1D or scalar: just replace with value
+            return src
+        return result
+    return _replace_at
+
+
 class InterventionComposer:
     """
     Compose multiple interventions into a single function.

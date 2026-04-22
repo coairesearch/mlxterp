@@ -75,10 +75,10 @@ checkpoints/
 wandb/
 *.mlx/
 
-# Temporary files (never commit these)
-test_*.py
-debug_*.py
-check_*.py
+# Temporary files (never commit these — root-level only)
+/test_*.py
+/debug_*.py
+/check_*.py
 *_TEMP.md
 *_FIX.md
 *_SUMMARY.md
@@ -86,3 +86,18 @@ scratch.*
 
 # Blog
 blog/
+
+# Example run artifacts
+autointerpret_dryrun/
+demo_output/
+selftest/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+

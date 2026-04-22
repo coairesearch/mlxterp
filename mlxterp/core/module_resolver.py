@@ -6,8 +6,93 @@ final norm, lm_head) across different model architectures using fallback chains.
 """
 
 import mlx.nn as nn
-from typing import Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any
 import warnings
+
+
+# Canonical component names to architecture-specific module names
+COMPONENT_ALIASES = {
+    "resid_post": None,  # The full layer output (no component suffix)
+    "resid_pre": None,   # Input to the layer (captured separately)
+    "attn": ["self_attn", "attn", "attention"],
+    "mlp": ["mlp", "feed_forward", "ff"],
+    "attn_head": ["self_attn", "attn", "attention"],  # Same as attn, post-processed per-head
+    "self_attn": ["self_attn", "attn", "attention"],
+}
+
+# Layer container names across architectures
+LAYER_CONTAINERS = ["layers", "h", "blocks", "decoder.layers"]
+
+
+def resolve_component(
+    component: str,
+    layer_idx: int,
+    activations: Dict[str, Any],
+) -> Optional[str]:
+    """
+    Resolve a canonical component name to the actual activation key.
+
+    Tries multiple path patterns across architectures (Llama, GPT-2, etc.)
+    and returns the first matching key found in the activations dict.
+
+    Args:
+        component: Canonical name: "resid_post", "attn", "mlp", "attn_head", etc.
+        layer_idx: Layer index
+        activations: Dict of activation keys from a trace
+
+    Returns:
+        The matching activation key, or None if not found.
+    """
+    if component in COMPONENT_ALIASES:
+        suffixes = COMPONENT_ALIASES[component]
+    else:
+        # Direct component name (e.g., "self_attn.q_proj")
+        suffixes = [component]
+
+    # resid_post / resid_pre: prefer the explicit suffixed key, fall back to layer itself
+    if suffixes is None:
+        # First try explicit .resid_pre / .resid_post keys
+        for container in LAYER_CONTAINERS:
+            for prefix in ["model.model.", "model.", ""]:
+                resid_key = f"{prefix}{container}.{layer_idx}.{component}"
+                if resid_key in activations:
+                    return resid_key
+        # Fall back to the bare layer key (for resid_post = layer output)
+        if component == "resid_post":
+            for container in LAYER_CONTAINERS:
+                for prefix in ["model.model.", "model.", ""]:
+                    key = f"{prefix}{container}.{layer_idx}"
+                    if key in activations:
+                        return key
+        return None
+
+    # Component with suffixes
+    for suffix in suffixes:
+        for container in LAYER_CONTAINERS:
+            for prefix in ["model.model.", "model.", ""]:
+                key = f"{prefix}{container}.{layer_idx}.{suffix}"
+                if key in activations:
+                    return key
+    return None
+
+
+def resolve_intervention_key(activation_key: str) -> str:
+    """
+    Convert an activation key to an intervention key by stripping model prefixes.
+
+    The intervention system uses shorter keys without "model." or "model.model." prefixes.
+
+    Args:
+        activation_key: Full activation key (e.g., "model.model.layers.5.mlp")
+
+    Returns:
+        Intervention key (e.g., "layers.5.mlp")
+    """
+    if activation_key.startswith("model.model."):
+        return activation_key[12:]
+    elif activation_key.startswith("model."):
+        return activation_key[6:]
+    return activation_key
 
 
 class ModuleResolver:
@@ -39,6 +124,9 @@ class ModuleResolver:
         "model.model.wte",          # GPT-2 double-wrapped
         "embeddings.word_embeddings", # BERT style
         "transformer.wte",          # GPT with transformer wrapper
+        "embed_in",                 # Pythia / GPT-NeoX direct
+        "model.embed_in",           # Pythia single-wrapped
+        "model.model.embed_in",     # Pythia double-wrapped
     ]
 
     NORM_PATHS = [
@@ -48,7 +136,9 @@ class ModuleResolver:
         "ln_f",                     # GPT-2 style
         "model.ln_f",               # GPT-2 with model wrapper
         "transformer.ln_f",         # GPT with transformer wrapper
-        "final_layer_norm",         # Some models
+        "final_layer_norm",         # Pythia / GPT-NeoX direct
+        "model.final_layer_norm",   # Pythia single-wrapped
+        "model.model.final_layer_norm",  # Pythia double-wrapped
     ]
 
     LM_HEAD_PATHS = [
@@ -57,6 +147,9 @@ class ModuleResolver:
         "model.model.lm_head",      # mlx-lm double-wrapped
         "output",                   # Some Llama implementations
         "head",                     # Alternative naming
+        "embed_out",                # Pythia / GPT-NeoX direct
+        "model.embed_out",          # Pythia single-wrapped
+        "model.model.embed_out",    # Pythia double-wrapped
     ]
 
     def __init__(

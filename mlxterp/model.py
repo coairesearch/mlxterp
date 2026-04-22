@@ -249,6 +249,59 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
             interpretable_model=self,
         )
 
+    def causal_trace(
+        self,
+        clean_input: Union[str, mx.array],
+        corrupted_input: Union[str, mx.array],
+    ):
+        """
+        Create a causal trace context for clean/corrupted paired analysis.
+
+        Usage:
+            with model.causal_trace("correct text", "corrupted text") as ct:
+                ct.patch("layers.5.mlp")
+                effect = ct.metric(logit_diff, correct_token=123, incorrect_token=456)
+
+        Args:
+            clean_input: Clean/correct input
+            corrupted_input: Corrupted/counterfactual input
+
+        Returns:
+            CausalTrace context manager
+        """
+        from .causal.trace import CausalTrace
+        return CausalTrace(self, clean_input, corrupted_input)
+
+    def conversation_trace(self, messages):
+        """
+        Create a conversation trace for multi-turn analysis.
+
+        Args:
+            messages: List of {"role": str, "content": str} dicts
+
+        Returns:
+            ConversationTrace context manager
+        """
+        from .conversation.trace import ConversationTrace
+        return ConversationTrace(self, messages)
+
+    def generate(self, prompt, max_tokens=50, temperature=0.0, **kwargs):
+        """
+        Generate text with optional interventions.
+
+        Args:
+            prompt: Input text, token array, or token list
+            max_tokens: Maximum tokens to generate
+            temperature: Sampling temperature (0 = greedy)
+            **kwargs: Additional args passed to generation.generate()
+
+        Returns:
+            GenerationResult
+        """
+        from .generation import generate
+        return generate(self, prompt, max_tokens=max_tokens,
+                       temperature=temperature, **kwargs)
+
     def _forward(self, inputs: mx.array) -> mx.array:
         """
         Execute the model forward pass.

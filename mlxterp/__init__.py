@@ -31,12 +31,23 @@ from .core import (
     scale,
     add_vector,
     replace_with,
+    replace_at_positions,
     clamp,
     noise,
     InterventionComposer,
     # Cache
     ActivationCache,
     collect_activations,
+)
+from .metrics import get_metric, METRICS
+from .results import (
+    AnalysisResult,
+    PatchingResult,
+    AttributionResult,
+    DLAResult,
+    GenerationResult,
+    ConversationResult,
+    CircuitResult,
 )
 from .utils import get_activations, batch_get_activations
 from .sae import SAE, SAEConfig, SAETrainer
