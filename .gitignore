@@ -91,3 +91,13 @@ blog/
 autointerpret_dryrun/
 demo_output/
 selftest/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+
