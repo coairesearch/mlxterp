@@ -8,7 +8,7 @@ import mlx.core as mx
 import mlx.nn as nn
 from typing import Optional, Dict, Callable, Any, Union, List
 
-from .core import Trace, ModuleProxy, LayerListProxy, ModuleResolver
+from .core import Trace, CausalTrace, ModuleProxy, LayerListProxy, ModuleResolver
 from .tokenization import TokenizerMixin
 from .analysis import AnalysisMixin
 from .sae_mixin import SAEMixin
@@ -247,6 +247,50 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
             tokenizer=self.tokenizer,
             interventions=interventions,
             interpretable_model=self,
+        )
+
+    def causal_trace(
+        self,
+        clean_input: Union[str, List[int], mx.array],
+        corrupted_input: Union[str, List[int], mx.array],
+        interventions: Optional[Dict[str, Callable]] = None,
+    ) -> CausalTrace:
+        """Create a comparative clean/corrupted trace context.
+
+        Captures activations on the clean input, then lets you schedule
+        per-module patches that swap clean activations into a corrupted
+        run. Reading ``ct.output`` lazily triggers the corrupted forward
+        with all patches applied. ``ct.clean_output`` is captured up
+        front during ``__enter__``.
+
+        Standard activation-patching pattern, but ergonomic — no manual
+        `replace_with` setup or activation-key prefix juggling.
+
+        Example:
+            >>> with model.causal_trace(
+            ...     clean_input="Paris is the capital of France",
+            ...     corrupted_input="London is the capital of France",
+            ... ) as ct:
+            ...     ct.patch("layers.5.mlp")
+            ...     ct.patch("layers.10.self_attn")
+            ...     patched = ct.output
+            ...     clean = ct.clean_output
+
+        Args:
+            clean_input: Clean run input (text or tokens).
+            corrupted_input: Corrupted run input (text or tokens).
+            interventions: Optional dict of additional interventions to
+                apply to the corrupted run alongside the scheduled
+                patches. Same format as ``model.trace()``.
+
+        Returns:
+            A CausalTrace context manager.
+        """
+        return CausalTrace(
+            model=self,
+            clean_input=clean_input,
+            corrupted_input=corrupted_input,
+            interventions=interventions,
         )
 
     def _forward(self, inputs: mx.array) -> mx.array:
