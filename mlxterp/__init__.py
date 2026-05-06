@@ -31,6 +31,7 @@ from .core import (
     scale,
     add_vector,
     replace_with,
+    replace_at_positions,
     clamp,
     noise,
     InterventionComposer,
@@ -55,6 +56,7 @@ class _Interventions:
     scale = staticmethod(scale)
     add_vector = staticmethod(add_vector)
     replace_with = staticmethod(replace_with)
+    replace_at_positions = staticmethod(replace_at_positions)
     clamp = staticmethod(clamp)
     noise = staticmethod(noise)
     compose = InterventionComposer
@@ -70,6 +72,7 @@ __all__ = [
     "scale",
     "add_vector",
     "replace_with",
+    "replace_at_positions",
     "clamp",
     "noise",
     "InterventionComposer",

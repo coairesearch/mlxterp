@@ -8,7 +8,7 @@ This module provides analysis-related methods as a mixin class, including:
 """
 
 import mlx.core as mx
-from typing import Optional, Dict, List, Union, Any
+from typing import Optional, Dict, List, Union, Any, Callable
 
 
 class AnalysisMixin:
@@ -720,17 +720,218 @@ class AnalysisMixin:
         plt.tight_layout()
         plt.show()
 
+    def _activation_patching_matrix(
+        self,
+        clean_text: str,
+        corrupted_text: str,
+        component: str,
+        layers: List[int],
+        positions: Union[List[int], str],
+        clean_output: "mx.array",
+        corrupted_output: "mx.array",
+        distance_fn: Callable,
+        baseline: float,
+        metric_label: str,
+        plot: bool,
+        figsize: tuple,
+        cmap: str,
+    ) -> "np.ndarray":
+        """Per-(layer, position) activation patching, returning a 2D matrix.
+
+        Called from ``activation_patching`` when ``positions`` is set.
+        Validates that clean and corrupted tokenise to the same length
+        (a constraint position-level patching requires for shape compat).
+        """
+        from . import interventions as iv
+        import numpy as np
+
+        if self.tokenizer is None:
+            raise ValueError("Position-level patching requires a tokenizer.")
+
+        clean_ids = self.tokenizer.encode(clean_text)
+        corrupted_ids = self.tokenizer.encode(corrupted_text)
+        if len(clean_ids) != len(corrupted_ids):
+            raise ValueError(
+                f"Position-level patching requires clean_text and "
+                f"corrupted_text to tokenise to the same length, but got "
+                f"{len(clean_ids)} vs {len(corrupted_ids)} tokens. Pad or "
+                f"trim the inputs to match, or use layer-only patching "
+                f"(positions=None)."
+            )
+        seq_len = len(clean_ids)
+
+        if positions == "all":
+            position_list = list(range(seq_len))
+        else:
+            position_list = [int(p) for p in positions]
+            for p in position_list:
+                if not (0 <= p < seq_len):
+                    raise ValueError(
+                        f"Position {p} is out of bounds for tokenised "
+                        f"sequence length {seq_len}."
+                    )
+
+        result = np.zeros((len(layers), len(position_list)), dtype=np.float32)
+
+        # Capture all clean activations once. The trace dict is keyed by the
+        # full module path; we look up the right key per layer below.
+        print(f"Capturing clean activations for {len(layers)} layer(s)...")
+        with self.trace(clean_text) as t_clean:
+            pass
+        clean_activations = dict(t_clean.activations)
+
+        # Build path patterns the same way as the layer-only branch.
+        # Reused per layer since the model architecture is fixed.
+        def _component_paths(layer_idx, comp):
+            variants = [comp]
+            if comp == "self_attn":
+                variants.append("attn")
+            elif comp == "attn":
+                variants.append("self_attn")
+            paths = []
+            if comp == "output":
+                paths = [
+                    f"model.model.layers.{layer_idx}",
+                    f"model.layers.{layer_idx}",
+                    f"layers.{layer_idx}",
+                    f"model.model.h.{layer_idx}",
+                    f"model.h.{layer_idx}",
+                    f"h.{layer_idx}",
+                ]
+            else:
+                for v in variants:
+                    paths.extend([
+                        f"model.model.layers.{layer_idx}.{v}",
+                        f"model.layers.{layer_idx}.{v}",
+                        f"layers.{layer_idx}.{v}",
+                        f"model.model.h.{layer_idx}.{v}",
+                        f"model.h.{layer_idx}.{v}",
+                        f"h.{layer_idx}.{v}",
+                    ])
+            return paths
+
+        print(
+            f"Patching {component} at {len(layers)} layer(s) x "
+            f"{len(position_list)} position(s) "
+            f"({len(layers) * len(position_list)} total forwards)..."
+        )
+
+        for li, layer_idx in enumerate(layers):
+            print(f"  Layer {layer_idx:2d}/{layers[-1]:2d}", end="\r")
+            paths = _component_paths(layer_idx, component)
+            activation_key = next((p for p in paths if p in clean_activations), None)
+            if activation_key is None:
+                # Skip — fill zeros, matching layer-only path's behaviour
+                # of skipping rather than failing on missing components.
+                continue
+            clean_activation = clean_activations[activation_key]
+
+            # Strip "model." prefix to get the intervention key
+            if activation_key.startswith("model.model."):
+                intervention_key = activation_key[len("model.model.") :]
+            elif activation_key.startswith("model."):
+                intervention_key = activation_key[len("model.") :]
+            else:
+                intervention_key = activation_key
+
+            for pi, pos in enumerate(position_list):
+                with self.trace(
+                    corrupted_text,
+                    interventions={
+                        intervention_key: iv.replace_at_positions(
+                            clean_activation, positions=pos
+                        )
+                    },
+                ):
+                    patched_output = self.output.save()
+                mx.eval(patched_output)
+                dist = distance_fn(patched_output[0, -1], clean_output[0, -1])
+                if baseline > 1e-10:
+                    recovery = (baseline - dist) / baseline * 100
+                else:
+                    recovery = 0.0
+                result[li, pi] = recovery
+
+        print(f"\nCompleted patching {result.shape[0]} layers x {result.shape[1]} positions")
+
+        if plot:
+            self._plot_patching_matrix(
+                result,
+                layers=layers,
+                positions=position_list,
+                clean_text=clean_text,
+                corrupted_text=corrupted_text,
+                component=component,
+                metric_label=metric_label,
+                figsize=figsize,
+                cmap=cmap,
+            )
+
+        return result
+
+    def _plot_patching_matrix(
+        self,
+        matrix: "np.ndarray",
+        *,
+        layers: List[int],
+        positions: List[int],
+        clean_text: str,
+        corrupted_text: str,
+        component: str,
+        metric_label: str,
+        figsize: tuple,
+        cmap: str,
+    ) -> None:
+        """Heatmap visualisation for the (n_layers, n_positions) matrix."""
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+        except ImportError:
+            print("matplotlib not available; skipping plot")
+            return
+
+        fig, ax = plt.subplots(figsize=figsize)
+        # Symmetric colour scale around 0 so positive (helps) is one colour
+        # and negative (hurts) is the other.
+        vmax = float(np.max(np.abs(matrix))) if matrix.size else 1.0
+        if vmax == 0:
+            vmax = 1.0
+        im = ax.imshow(
+            matrix, aspect="auto", cmap=cmap, vmin=-vmax, vmax=vmax,
+            interpolation="nearest",
+        )
+        ax.set_xticks(range(len(positions)))
+        ax.set_xticklabels([str(p) for p in positions], fontsize=9)
+        ax.set_yticks(range(len(layers)))
+        ax.set_yticklabels([str(l) for l in layers], fontsize=9)
+        ax.set_xlabel("token position", fontsize=11, weight="bold")
+        ax.set_ylabel("layer", fontsize=11, weight="bold")
+        clean_short = clean_text if len(clean_text) <= 50 else clean_text[:50] + "..."
+        corr_short = corrupted_text if len(corrupted_text) <= 50 else corrupted_text[:50] + "..."
+        ax.set_title(
+            f"Activation patching ({component}) — recovery%, metric={metric_label}\n"
+            f"clean: {clean_short!r}\ncorrupted: {corr_short!r}",
+            fontsize=11,
+        )
+        cb = plt.colorbar(im, ax=ax)
+        cb.set_label("recovery %  (positive = helps)", rotation=270, labelpad=15)
+        plt.tight_layout()
+        plt.show()
+
     def activation_patching(
         self,
         clean_text: str,
         corrupted_text: str,
         component: str = "mlp",
         layers: Optional[List[int]] = None,
-        metric: str = "l2",
+        positions: Optional[Union[List[int], str]] = None,
+        metric: Union[str, Callable] = "l2",
+        clean_target: Optional[str] = None,
+        corrupted_target: Optional[str] = None,
         plot: bool = False,
         figsize: tuple = (12, 8),
         cmap: str = "RdBu_r"
-    ) -> Dict[int, float]:
+    ) -> Union[Dict[int, float], "np.ndarray"]:
         """
         Automated activation patching to find important layers for a task.
 
@@ -744,23 +945,53 @@ class AnalysisMixin:
             component: Component to patch. Valid options:
                 - "mlp": The MLP/feed-forward component
                 - "self_attn": The self-attention component
+                - "output": The full layer output (residual stream after this layer)
                 - Full paths like "mlp.gate_proj", "self_attn.q_proj"
                 Note: Use the component names from your model architecture.
                 For mlx-lm models, use "self_attn" (not "attn").
             layers: Specific layers to test (None = all layers)
-            metric: Distance metric. Options:
-                - "l2": Euclidean distance (default, with overflow protection)
-                - "cosine": Cosine distance (recommended for large vocabularies)
+            positions: If None (default), patch the entire layer activation
+                (the whole sequence) and return a per-layer dict — original
+                behaviour. If a list of token positions, patch only those
+                positions and return a (n_layers, n_positions) numpy matrix.
+                "all" patches every position in the corrupted sequence.
+                Position-level patching requires clean_text and corrupted_text
+                to tokenise to the same length; the method validates this and
+                raises ValueError otherwise.
+            metric: How to compare patched output to clean output. Either a
+                string for built-in metrics or a callable that takes
+                (patched_logits, clean_logits, corrupted_logits) and returns
+                a float. Built-ins:
+                - "l2": Euclidean distance (default; overflow protection)
+                - "cosine": Cosine distance (recommended for large vocabs)
                 - "mse": Mean squared error (most stable for huge models)
-            plot: If True, display heatmap of results
+                - "logit_diff": diff(logit[clean_target], logit[corrupted_target])
+                  measured against the diff in the clean run. Recovery=100%
+                  means the patch restored the clean run's logit advantage
+                  on the target token. Requires clean_target and
+                  corrupted_target.
+                - "kl_divergence": KL(softmax(clean_logits) || softmax(patched_logits)).
+                  Lower is better; recovery is computed against the
+                  corrupted-vs-clean baseline.
+            clean_target: Token string for the clean continuation (e.g. "Paris").
+                Required when metric="logit_diff". Tokenised with the model's
+                tokenizer; the first token is used.
+            corrupted_target: Token string for the corrupted continuation
+                (e.g. "London"). Required when metric="logit_diff".
+            plot: If True, display heatmap of results. For position-level
+                patching, the heatmap is a (n_layers, n_positions) grid;
+                for layer-level, a per-layer bar chart.
             figsize: Figure size for plot
-            cmap: Colormap for heatmap (default: "RdBu_r" - blue=positive, red=negative)
+            cmap: Colormap for heatmap (default: "RdBu_r")
 
         Returns:
-            Dict mapping layer_idx -> recovery percentage
-            Positive % = layer is important (patching helps)
-            Negative % = layer encodes corruption (patching hurts)
-            ~0% = layer not relevant for this task
+            If positions is None: Dict mapping layer_idx -> recovery percentage
+                (positive = layer is important; negative = layer encodes
+                corruption; ~0 = layer not relevant)
+            If positions is specified: numpy ndarray of shape
+                (n_layers, n_positions) with the same recovery-percentage
+                semantics. Layer order matches the `layers` argument; position
+                order matches the `positions` argument.
 
         Example:
             >>> # Find which MLPs are important for factual knowledge
@@ -770,12 +1001,41 @@ class AnalysisMixin:
             >>>     component="mlp",
             >>>     plot=True
             >>> )
-            >>>
-            >>> # Get most important layers
             >>> sorted_layers = sorted(results.items(), key=lambda x: x[1], reverse=True)
             >>> print(f"Most important: Layer {sorted_layers[0][0]} ({sorted_layers[0][1]:.1f}%)")
+
+            >>> # Per-position patching with the logit-diff metric
+            >>> matrix = model.activation_patching(
+            >>>     clean_text="The Eiffel Tower is in",
+            >>>     corrupted_text="The Colosseum is in",
+            >>>     component="output",
+            >>>     positions="all",
+            >>>     metric="logit_diff",
+            >>>     clean_target=" Paris",
+            >>>     corrupted_target=" Rome",
+            >>>     plot=True,
+            >>> )
+            >>> # matrix shape: (n_layers, n_positions)
         """
         from . import interventions as iv
+
+        # Validate metric arguments early so we don't run a bunch of
+        # forward passes only to fail at scoring time.
+        if metric == "logit_diff":
+            if not clean_target or not corrupted_target:
+                raise ValueError(
+                    "metric='logit_diff' requires clean_target and "
+                    "corrupted_target (e.g. clean_target=' Paris', "
+                    "corrupted_target=' Rome'). The method tokenises each "
+                    "and uses the first token id."
+                )
+            if self.tokenizer is None:
+                raise ValueError(
+                    "metric='logit_diff' requires a tokenizer on the "
+                    "InterpretableModel."
+                )
+            clean_target_id = int(self.tokenizer.encode(clean_target)[0])
+            corrupted_target_id = int(self.tokenizer.encode(corrupted_target)[0])
 
         # Get baseline outputs
         print(f"Getting clean output...")
@@ -823,8 +1083,63 @@ class AnalysisMixin:
                 """Mean squared error - stable for large vocabularies"""
                 diff = a.astype(mx.float32) - b.astype(mx.float32)
                 return float(mx.mean(diff * diff))
+        elif metric == "logit_diff":
+            # Causal-importance metric: how much of the clean run's logit
+            # advantage on the target token does the patched run recover?
+            # baseline = corrupted run's logit gap; recovery is computed
+            # against the clean run's gap downstream.
+            def distance(a, b):
+                """Logit-diff style 'distance':
+                    distance(patched, clean) = -(patched[clean_target] - patched[corrupted_target])
+                where smaller is better (closer to clean's preference for
+                the clean target). Sign chosen so the existing
+                'recovery = (baseline - dist) / baseline * 100' formula
+                works without changes.
+                """
+                a_f32 = a.astype(mx.float32)
+                gap = float(a_f32[clean_target_id] - a_f32[corrupted_target_id])
+                # Encode as a 'distance from clean': clean_gap - patched_gap.
+                clean_gap = float(
+                    clean_output[0, -1].astype(mx.float32)[clean_target_id]
+                    - clean_output[0, -1].astype(mx.float32)[corrupted_target_id]
+                )
+                return clean_gap - gap
+        elif metric == "kl_divergence":
+            def distance(a, b):
+                """KL(softmax(clean) || softmax(patched)). Lower = closer to clean."""
+                a_f32 = a.astype(mx.float32)
+                b_f32 = b.astype(mx.float32)  # b is clean_output[0, -1]
+                p_clean = mx.softmax(b_f32, axis=-1)
+                logp_patched = mx.log(mx.softmax(a_f32, axis=-1) + 1e-12)
+                logp_clean = mx.log(p_clean + 1e-12)
+                kl = mx.sum(p_clean * (logp_clean - logp_patched))
+                return float(kl)
+        elif metric == "cross_entropy_diff":
+            def distance(a, b):
+                """Cross-entropy(clean_distribution, patched) minus
+                cross-entropy(clean_distribution, clean) (= entropy of
+                clean). Stays >=0 by construction; lower = closer to clean.
+                """
+                a_f32 = a.astype(mx.float32)
+                b_f32 = b.astype(mx.float32)
+                p_clean = mx.softmax(b_f32, axis=-1)
+                logp_patched = mx.log(mx.softmax(a_f32, axis=-1) + 1e-12)
+                logp_clean = mx.log(p_clean + 1e-12)
+                ce_patched = -mx.sum(p_clean * logp_patched)
+                ce_clean = -mx.sum(p_clean * logp_clean)
+                return float(ce_patched - ce_clean)
+        elif callable(metric):
+            # Custom metric. Caller's function takes (patched_logits,
+            # clean_logits, corrupted_logits) and returns a scalar.
+            user_metric = metric
+            def distance(a, b):
+                return float(user_metric(a, b, corrupted_output[0, -1]))
         else:
-            raise ValueError(f"Unknown metric: {metric}. Use 'l2', 'cosine', or 'mse'")
+            raise ValueError(
+                f"Unknown metric: {metric}. Built-ins: 'l2', 'cosine', "
+                f"'mse', 'logit_diff', 'kl_divergence', 'cross_entropy_diff'. "
+                f"Or pass a callable."
+            )
 
         baseline = distance(corrupted_output[0, -1], clean_output[0, -1])
         print(f"Baseline {metric} distance: {baseline:.4f}\n")
@@ -832,6 +1147,26 @@ class AnalysisMixin:
         # Determine layers to test
         if layers is None:
             layers = list(range(len(self.layers)))
+
+        # Position-level patching path. When positions is None we keep the
+        # original layer-only behaviour below; when specified we patch only
+        # at the requested token positions and return a 2D matrix.
+        if positions is not None:
+            return self._activation_patching_matrix(
+                clean_text=clean_text,
+                corrupted_text=corrupted_text,
+                component=component,
+                layers=layers,
+                positions=positions,
+                clean_output=clean_output,
+                corrupted_output=corrupted_output,
+                distance_fn=distance,
+                baseline=baseline,
+                metric_label=str(metric) if isinstance(metric, str) else "custom",
+                plot=plot,
+                figsize=figsize,
+                cmap=cmap,
+            )
 
         results = {}
 

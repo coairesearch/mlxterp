@@ -56,11 +56,39 @@ results = model.activation_patching(
 ```
 
 **Deliverables**:
-- [ ] `model.activation_patching()` method on InterpretableModel
-- [ ] Support for component types: `resid_post`, `resid_pre`, `attn`, `mlp`, `attn_head`
-- [ ] Position-level and layer-level patching
-- [ ] Built-in metrics: `logit_diff`, `kl_divergence`, `cross_entropy_diff`
-- [ ] Patching result heatmap visualization (layer x position matrix)
+- [x] `model.activation_patching()` method on InterpretableModel — already
+  existed for layer-level; now extended with position-level support and
+  built-in causal metrics
+- [ ] Support for component types: `resid_post`, `resid_pre`, `attn`, `mlp`,
+  `attn_head` — `mlp`, `self_attn`, `output` work today; `resid_pre`,
+  `resid_post`, `attn_head` deferred (need component-level architectural
+  introspection)
+- [x] Position-level and layer-level patching — `positions=None` (default)
+  keeps the layer-only Dict[int, float] return; `positions=[...]` or
+  `'all'` returns a `(n_layers, n_positions)` numpy matrix. Implemented
+  via the new `interventions.replace_at_positions()` helper which
+  overwrites only specified token positions in an activation
+- [x] Built-in metrics: `logit_diff`, `kl_divergence`, `cross_entropy_diff`
+  — plus the original `l2`, `cosine`, `mse`. `logit_diff` requires
+  `clean_target` / `corrupted_target` keyword args; the other two work on
+  full distributions
+- [x] Patching result heatmap visualization (layer × position matrix) —
+  `plot=True` renders a symmetric-scale RdBu_r heatmap with positions on
+  the x-axis and layers on the y-axis
+
+Implementation: `mlxterp/analysis.py` `activation_patching()` method
+extended with `positions`, `clean_target`, `corrupted_target` kwargs;
+new private `_activation_patching_matrix()` and `_plot_patching_matrix()`
+methods. New `interventions.replace_at_positions()` helper in
+`mlxterp/core/intervention.py`.
+
+Tests: `tests/test_activation_patching_positions.py` — backwards-compat,
+matrix shape, length-mismatch validation, replace_at_positions unit
+test, logit_diff and kl_divergence metric smoke.
+
+Example: `examples/activation_patching_positions.py` — Paris/London
+canonical task with `logit_diff` metric returning the full
+(layers × positions) matrix.
 
 **Reference**: TransformerLens `patching` module, pyvene interchange interventions
 
