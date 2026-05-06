@@ -5,6 +5,7 @@ This module provides analysis-related methods as a mixin class, including:
 - get_token_predictions: Decode hidden states to token predictions
 - logit_lens: See what each layer predicts at each position
 - activation_patching: Identify important layers for a task
+- path_patching: Single-component edge-level causal effect
 """
 
 import mlx.core as mx
@@ -988,3 +989,205 @@ class AnalysisMixin:
             plt.show()
 
         return results
+
+    def path_patching(
+        self,
+        clean_text: str,
+        corrupted_text: str,
+        sender: str,
+        target_token: Union[str, int],
+        foil_token: Union[str, int],
+        receiver: Optional[str] = None,
+    ) -> float:
+        """Single-component path-patching: causal effect via the path from
+        ``sender`` to the final logits, with all other components frozen
+        at corrupted values.
+
+        Activation patching tells you *which* component matters; path
+        patching tells you *what flows through it*. The standard
+        formulation: in a forward where every component (every attn and
+        every MLP) is frozen at its corrupted value, only the sender is
+        replaced with its clean value. The change in the metric isolates
+        the contribution flowing from this one component, with no other
+        path active. This is the single-edge MVP — sender at one
+        component, receiver implicitly the final logits.
+
+        For the full edge-level case where ``receiver`` is an internal
+        component, the implementation is the same up to the metric: the
+        receiver argument is currently accepted but not used (the metric
+        is always logit_diff at the last position). Per-receiver paths
+        are a follow-up — they require letting the receiver compute
+        naturally on the patched residual while keeping everything else
+        frozen, which is mostly orchestration on top of this MVP.
+
+        Args:
+            clean_text: The "intended" prompt — produces the target output.
+            corrupted_text: The contrastive prompt. Must tokenize to the
+                same length as ``clean_text``.
+            sender: Path to the sender component, e.g.
+                ``"layers.7.self_attn"`` or ``"layers.7.mlp"``. The path
+                is matched against ``trace.activations`` keys with the
+                usual mlx-lm prefix variants.
+            target_token: Token whose logit grows under the clean run.
+            foil_token: Token whose logit grows under the corrupted run.
+                Metric is ``logit(target) - logit(foil)`` at the last
+                position.
+            receiver: Optional receiver path. Currently unused; reserved
+                for the per-receiver follow-up. Pass it for forward
+                compatibility; the function will warn if you pass
+                something other than ``None`` or ``"logits"``.
+
+        Returns:
+            Float: ``patched_metric - corrupted_metric``. Positive means
+            this component carries clean-aligned signal; near-zero means
+            the component is on a low-importance path; negative means
+            the corrupted-aligned signal flows through it.
+
+        Notes:
+            - "Frozen at corrupted" here means: every layer's
+              ``self_attn`` output and every layer's ``mlp`` output is
+              replaced with the value it took during the corrupted
+              forward, except the sender. This is the canonical path
+              patching set-up; the per-head version is a follow-up
+              (it needs splitting ``self_attn`` into per-head outputs,
+              which mlx-lm doesn't expose as a hook point yet).
+            - Comparison against the unfrozen corrupted forward gives
+              the same metric numerically (freezing each component at
+              its own value is a no-op), so we report the
+              freeze-baseline difference, which is what the standard
+              path-patching effect is.
+
+        Example:
+            >>> # Does layer 14's MLP carry the Paris→France signal?
+            >>> effect = model.path_patching(
+            ...     clean_text="Paris is the capital of France",
+            ...     corrupted_text="London is the capital of France",
+            ...     sender="layers.14.mlp",
+            ...     target_token=" Paris",
+            ...     foil_token=" London",
+            ... )
+            >>> # → ~+1.0 if it carries the signal; ~0 if not.
+        """
+        from . import interventions as iv
+
+        if receiver not in (None, "logits", "output"):
+            print(
+                f"path_patching: receiver={receiver!r} is reserved for the "
+                "per-receiver follow-up; the current MVP measures the "
+                "effect on the final logits. Proceeding with logits."
+            )
+
+        if self.tokenizer is None:
+            raise ValueError("path_patching requires a tokenizer on the model.")
+
+        clean_ids = self.tokenizer.encode(clean_text)
+        corrupted_ids = self.tokenizer.encode(corrupted_text)
+        if len(clean_ids) != len(corrupted_ids):
+            raise ValueError(
+                f"clean and corrupted must tokenize to the same length for "
+                f"path patching (got {len(clean_ids)} vs {len(corrupted_ids)})."
+            )
+
+        def _to_id(tok):
+            if isinstance(tok, int):
+                return tok
+            try:
+                ids = self.tokenizer.encode(tok, add_special_tokens=False)
+            except TypeError:
+                ids = self.tokenizer.encode(tok)
+            bos_id = getattr(self.tokenizer, "bos_token_id", None)
+            if bos_id is not None and ids and ids[0] == bos_id:
+                ids = ids[1:]
+            if len(ids) != 1:
+                raise ValueError(
+                    f"target/foil must be a single token; got {tok!r} which "
+                    f"tokenizes to {len(ids)} ids ({ids})."
+                )
+            return ids[0]
+
+        target_id = _to_id(target_token)
+        foil_id = _to_id(foil_token)
+
+        # Step 1: enumerate every layer's self_attn and mlp activation
+        # paths from the corrupted run. These are the components we will
+        # freeze.
+        n_layers = len(self.layers)
+        with self.trace(corrupted_text) as ctrace:
+            # Capture corrupted values at every component we plan to
+            # freeze. We try each variant and pick whichever exists.
+            def _resolve(layer_idx, suffix):
+                for prefix in (
+                    "model.model.layers",
+                    "model.layers",
+                    "layers",
+                ):
+                    path = f"{prefix}.{layer_idx}.{suffix}"
+                    if path in ctrace.activations:
+                        return path
+                return None
+
+            corrupted_components = {}
+            for i in range(n_layers):
+                for suffix in ("self_attn", "mlp"):
+                    path = _resolve(i, suffix)
+                    if path is not None:
+                        corrupted_components[path] = ctrace.activations[path]
+            corrupted_logits = self.output.save()
+
+        for path, save in corrupted_components.items():
+            mx.eval(save)
+        mx.eval(corrupted_logits)
+
+        # Materialise into a dict of arrays so the savers can be reused
+        # safely outside the trace context.
+        corrupted_acts = {p: mx.array(s) for p, s in corrupted_components.items()}
+
+        # Step 2: capture the clean sender. We need to find the sender's
+        # full path under any of the prefix variants.
+        sender_full_path = None
+        with self.trace(clean_text) as ctr:
+            for prefix in ("model.model.", "model.", ""):
+                cand = f"{prefix}{sender}"
+                if cand in ctr.activations:
+                    sender_full_path = cand
+                    clean_sender = ctr.activations[cand]
+                    break
+        if sender_full_path is None:
+            raise ValueError(
+                f"sender {sender!r} not found in trace activations. Try one "
+                f"of: layers.{{i}}.self_attn, layers.{{i}}.mlp."
+            )
+        mx.eval(clean_sender)
+        clean_sender_value = mx.array(clean_sender)
+
+        def _strip_prefix(p: str) -> str:
+            if p.startswith("model.model."):
+                return p[12:]
+            if p.startswith("model."):
+                return p[6:]
+            return p
+
+        sender_intervention_key = _strip_prefix(sender_full_path)
+
+        # Step 3: build the freeze interventions — every component
+        # except the sender gets replaced with its corrupted value.
+        interventions = {}
+        for path, value in corrupted_acts.items():
+            if path == sender_full_path:
+                continue
+            interventions[_strip_prefix(path)] = iv.replace_with(value)
+        interventions[sender_intervention_key] = iv.replace_with(clean_sender_value)
+
+        # Step 4: run patched forward, compute logit_diff.
+        with self.trace(corrupted_text, interventions=interventions):
+            patched_logits = self.output.save()
+        mx.eval(patched_logits)
+
+        patched_metric = float(
+            patched_logits[0, -1, target_id] - patched_logits[0, -1, foil_id]
+        )
+        corrupted_metric = float(
+            corrupted_logits[0, -1, target_id] - corrupted_logits[0, -1, foil_id]
+        )
+
+        return patched_metric - corrupted_metric
