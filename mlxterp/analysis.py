@@ -5,6 +5,7 @@ This module provides analysis-related methods as a mixin class, including:
 - get_token_predictions: Decode hidden states to token predictions
 - logit_lens: See what each layer predicts at each position
 - activation_patching: Identify important layers for a task
+- attribution_patching: Gradient-based linear approximation of activation_patching
 """
 
 import mlx.core as mx
@@ -988,3 +989,255 @@ class AnalysisMixin:
             plt.show()
 
         return results
+
+    def attribution_patching(
+        self,
+        clean_text: str,
+        corrupted_text: str,
+        target_token: Union[str, int],
+        foil_token: Union[str, int],
+        layers: Optional[List[int]] = None,
+        component: str = "output",
+        position: Optional[int] = -1,
+    ) -> Dict[int, float]:
+        """Gradient-based approximation of activation patching.
+
+        Attribution patching estimates the causal effect of patching each
+        component's activation in one forward + one backward pass, instead
+        of running a separate corrupted-with-patched forward for every
+        (layer, component) cell. The standard linear approximation is::
+
+            attribution[c] = sum( (clean_act[c] - corrupted_act[c])
+                                  * grad_metric_wrt_corrupted_act[c] )
+
+        which is the first-order Taylor expansion of the brute-force
+        patching effect around the corrupted point. It is exact when the
+        rest of the network is linear in the activation (rarely true) and
+        a good ordering signal in practice — Nanda showed it identifies
+        the same IOI heads as full patching, ~100x faster.
+
+        Args:
+            clean_text: The "intended" prompt — produces the target output.
+            corrupted_text: The contrastive prompt — produces a different
+                output. Must tokenize to the same length as ``clean_text``;
+                attribution requires position-aligned activations.
+            target_token: Token whose logit grows under the clean run
+                (str gets tokenized; int is treated as a token id).
+            foil_token: Token whose logit grows under the corrupted run.
+                The metric is ``logit(target) - logit(foil)`` at the last
+                position, so the gradient direction is well-defined.
+            layers: Layer indices to attribute. ``None`` means all layers.
+            component: Component to attribute. Currently:
+                - ``"output"``: the layer's residual-stream output (the
+                  whole transformer block's contribution). This is the
+                  ``resid_post`` analogue and matches what the existing
+                  ``activation_patching(component="output", ...)`` patches.
+            position: Sequence position to attribute at. Defaults to
+                ``-1`` (last position only) which is the standard
+                next-token attribution. Pass ``None`` to sum over all
+                positions (gives a coarser layer-level signal). Pass a
+                non-negative int to attribute at that absolute
+                position.
+
+        Returns:
+            Dict mapping ``layer_idx -> float attribution score``. Larger
+            magnitude means the layer's residual contribution carries more
+            of the contrastive signal. Sign convention matches the
+            patching effect: positive attribution ⇒ patching the clean
+            activation in increases the (target - foil) margin.
+
+        Notes:
+            - Requires ``clean_text`` and ``corrupted_text`` to tokenize to
+              the same number of tokens. Attribution at mismatched lengths
+              isn't well-defined position-by-position.
+            - Returns a single scalar per layer (sum-reduced over
+              positions and hidden dim). Position-resolved attribution is
+              a follow-up — emit a (n_layers, n_positions) matrix.
+            - This is layer-level / ``resid_post``-style attribution.
+              Per-head and ``mlp`` / ``attn`` component attribution is
+              feasible with the same machinery and is on the roadmap.
+
+        Example:
+            >>> attr = model.attribution_patching(
+            ...     clean_text="The Eiffel Tower is in",
+            ...     corrupted_text="The Colosseum is in",
+            ...     target_token=" Paris",
+            ...     foil_token=" Rome",
+            ... )
+            >>> top = sorted(attr.items(), key=lambda kv: -abs(kv[1]))[:3]
+            >>> # → layers carrying the factual-recall signal
+        """
+        from . import interventions as iv
+
+        if component != "output":
+            raise NotImplementedError(
+                f"attribution_patching currently supports component='output' "
+                f"(layer residual). Got {component!r}. Per-head, mlp, attn "
+                f"variants are roadmap follow-ups."
+            )
+
+        # Tokenize-and-length-check up front. Position alignment is not
+        # optional for first-order attribution.
+        if self.tokenizer is None:
+            raise ValueError(
+                "attribution_patching requires a tokenizer on the model."
+            )
+        clean_ids = self.tokenizer.encode(clean_text)
+        corrupted_ids = self.tokenizer.encode(corrupted_text)
+        if len(clean_ids) != len(corrupted_ids):
+            raise ValueError(
+                f"clean and corrupted must tokenize to the same length for "
+                f"attribution patching (got {len(clean_ids)} vs "
+                f"{len(corrupted_ids)}). Pad or rephrase one of them."
+            )
+
+        # Resolve target/foil to int token ids. Most HF/MLX tokenizers
+        # prepend a BOS token by default; strip it before checking
+        # single-token-ness so users don't have to think about it.
+        def _to_id(tok):
+            if isinstance(tok, int):
+                return tok
+            try:
+                ids = self.tokenizer.encode(tok, add_special_tokens=False)
+            except TypeError:
+                ids = self.tokenizer.encode(tok)
+            bos_id = getattr(self.tokenizer, "bos_token_id", None)
+            if bos_id is not None and ids and ids[0] == bos_id:
+                ids = ids[1:]
+            if len(ids) != 1:
+                raise ValueError(
+                    f"target/foil must be a single token; got {tok!r} which "
+                    f"tokenizes to {len(ids)} ids ({ids})."
+                )
+            return ids[0]
+
+        target_id = _to_id(target_token)
+        foil_id = _to_id(foil_token)
+
+        # Layer key resolution: try the canonical mlx-lm path, fall back
+        # to alternates. We pick whichever shows up in the trace.
+        if layers is None:
+            layers = list(range(len(self.layers)))
+
+        path_patterns_for = lambda i: [
+            f"model.model.layers.{i}",
+            f"model.layers.{i}",
+            f"layers.{i}",
+            f"model.model.h.{i}",
+            f"model.h.{i}",
+            f"h.{i}",
+        ]
+
+        # Step 1: capture clean and corrupted activations at the target
+        # layers.
+        with self.trace(clean_text) as clean_trace:
+            clean_acts_savers = {}
+            for i in layers:
+                for path in path_patterns_for(i):
+                    if path in clean_trace.activations:
+                        clean_acts_savers[i] = (path, clean_trace.activations[path])
+                        break
+        with self.trace(corrupted_text) as corrupted_trace:
+            corrupted_acts_savers = {}
+            for i in layers:
+                for path in path_patterns_for(i):
+                    if path in corrupted_trace.activations:
+                        corrupted_acts_savers[i] = (path, corrupted_trace.activations[path])
+                        break
+
+        active_layers = sorted(set(clean_acts_savers) & set(corrupted_acts_savers))
+        if not active_layers:
+            print("Warning: no activation paths matched for any layer.")
+            return {}
+        if len(active_layers) < len(layers):
+            missing = set(layers) - set(active_layers)
+            print(f"Warning: skipping layers without resolved paths: {sorted(missing)}")
+
+        clean_acts = {}
+        corrupted_acts = {}
+        for i in active_layers:
+            _, c_save = clean_acts_savers[i]
+            _, x_save = corrupted_acts_savers[i]
+            mx.eval(c_save, x_save)
+            clean_acts[i] = mx.array(c_save)
+            corrupted_acts[i] = mx.array(x_save)
+
+        # Convert "model.model.layers.N" → "layers.N" for the
+        # interventions dict (Trace's intervention keys drop the wrapper
+        # prefix; matches activation_patching's convention).
+        def _strip_prefix(p: str) -> str:
+            if p.startswith("model.model."):
+                return p[12:]
+            if p.startswith("model."):
+                return p[6:]
+            return p
+
+        intervention_keys = {
+            i: _strip_prefix(corrupted_acts_savers[i][0]) for i in active_layers
+        }
+
+        # Step 2: define metric using the "zero-perturbation" adjoint
+        # trick. Replacing each layer's output with a free variable
+        # would decouple the layers (the intervention at layer i+1
+        # overwrites whatever computation depended on the variable at
+        # layer i, so dM/d(var_i) = 0 for all i except the last).
+        #
+        # Instead we *add* a zero tensor at each layer's output. The
+        # natural forward runs (no behavioural change at zero), and
+        # because each perturbation enters additively at exactly one
+        # point in the graph, the gradient of the metric w.r.t. the
+        # perturbation equals the gradient w.r.t. the activation
+        # itself in the natural forward — the chain rule does its job.
+        #
+        # This is the standard adjoint formulation used by
+        # TransformerLens and the Nanda attribution-patching reference,
+        # adapted to MLX's gradient API.
+        zero_perts = {i: mx.zeros_like(corrupted_acts[i]) for i in active_layers}
+
+        def metric_fn(pert_dict):
+            interventions = {}
+            for i in active_layers:
+                p = pert_dict[i]
+
+                def make_add(p_):
+                    def _add(x):
+                        return x + p_
+                    return _add
+
+                interventions[intervention_keys[i]] = make_add(p)
+            with self.trace(corrupted_text, interventions=interventions):
+                logits = self.output.save()
+            last = logits[0, -1]
+            return last[target_id] - last[foil_id]
+
+        # Step 3: take gradient at zero perturbation.
+        grad_fn = mx.grad(metric_fn)
+        grads = grad_fn(zero_perts)
+        for i in active_layers:
+            mx.eval(grads[i])
+
+        # Step 4: attribution = sum((clean - corrupted) * grad).
+        # If position is specified, attribute at that position only;
+        # otherwise sum across positions.
+        attributions = {}
+        for i in active_layers:
+            diff = (clean_acts[i] - corrupted_acts[i]).astype(mx.float32)
+            g = grads[i].astype(mx.float32)
+            if position is None:
+                attributions[i] = float(mx.sum(diff * g))
+            else:
+                # Slice the sequence axis (typically axis -2 for
+                # (batch, seq, hidden); falls back to axis 0 if 2D).
+                if diff.ndim >= 2:
+                    seq_axis = -2 if diff.ndim >= 3 else 0
+                    if seq_axis == -2:
+                        diff_p = diff[..., position, :]
+                        g_p = g[..., position, :]
+                    else:
+                        diff_p = diff[position]
+                        g_p = g[position]
+                    attributions[i] = float(mx.sum(diff_p * g_p))
+                else:
+                    attributions[i] = float(mx.sum(diff * g))
+
+        return attributions
