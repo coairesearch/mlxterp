@@ -209,9 +209,13 @@ edge_effects = model.path_patching(
 **Why**: The residual stream is the central data structure in transformer interpretability. Explicit access to pre/post residual stream at each layer underpins DLA, path patching, and circuit analysis.
 
 **Deliverables**:
-- [ ] Named hook points: `resid_pre`, `resid_post`, `resid_mid` (between attn and MLP)
-- [ ] `model.layers[i].resid_pre.save()` / `model.layers[i].resid_post.save()` proxy access
-- [ ] Residual stream difference computation (contribution of each layer)
+- [x] Named hook points: `resid_pre`, `resid_post`, `resid_mid` (between attn and MLP) — exposed via `model.residual_stream(text)` returning a `ResidualStream` view object with `.pre(i)`, `.mid(i)`, `.post(i)` methods (derives all three from a single trace, no extra hook engineering required)
+- [x] Per-layer attn / MLP contribution: `rs.attn_contribution(i)`, `rs.mlp_contribution(i)`
+- [x] Residual stream difference / decomposition: `rs.decompose(layer_idx)` returns the per-component dict whose values sum to `rs.post(layer_idx)` exactly. Validated on Llama-3.2-1B-Instruct-4bit: max |Δ| = 0.000000 at every layer (the pre-norm + skip-add identity)
+- [x] Per-layer cumulative residual: `rs.accumulated()` returns `[resid_post[0], ..., resid_post[N-1]]`
+- [ ] Proxy-access version (`model.layers[i].resid_pre.save()`) — needs touching the proxy machinery; deferred. Current API is method-style on the result object, which is functionally equivalent.
+
+Implementation: `ResidualStream` and `build_residual_stream_from_trace` in `mlxterp/residual_stream.py`; `AnalysisMixin.residual_stream()` in `mlxterp/analysis.py`. Tests: `tests/test_residual_stream.py` (4 contract tests including the strict identity). Validation script: `examples/residual_stream.py`.
 
 ---
 
