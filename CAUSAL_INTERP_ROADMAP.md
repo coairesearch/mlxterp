@@ -127,10 +127,15 @@ output = model.generate(
 ```
 
 **Deliverables**:
-- [ ] `model.generate()` with basic sampling (greedy, temperature, top-k, top-p)
-- [ ] Intervention support during generation
-- [ ] KV-cache integration (interventions must work with cached inference)
-- [ ] Token-by-token callback for custom stopping / logging
+- [x] `model.generate()` with basic sampling (greedy, temperature, top-k, top-p) — delegated to `mlx_lm.generate` via `**sampling_kwargs`; modern mlx-lm uses `sampler=make_sampler(temp=...)` rather than direct kwargs
+- [x] Intervention support during generation — implemented via `Trace(skip_forward=True)` which patches model layers without running an auto-forward, then mlx-lm's generate loop hits the patched layers on every token
+- [x] KV-cache integration (interventions must work with cached inference) — delegated to mlx_lm.generate; validated by per-token timing: ~21ms/token at 25 tokens vs ~18ms/token at 100 tokens (cache amortising), no scaling with prefix length
+- [x] Per-token intervention selectivity (`intervention_tokens="all" | "prompt" | "generated" | int | list/range/slice`) — gates each intervention on the activation sequence-length (>1 = prompt, =1 = generated)
+- [ ] Token-by-token callback for custom stopping / logging — orthogonal to the intervention mechanism; deferred to a follow-up
+
+Implementation: `InterpretableModel.generate()` in `mlxterp/model.py`, gating helper `_make_token_gated_intervention()` in the same file. New `Trace(skip_forward=True)` parameter in `mlxterp/core/trace.py`. Tests in `tests/test_generation_with_interventions.py` (4 contract tests). Example in `examples/generation_with_interventions.py`.
+
+While we were in the area, also fixed an unrelated cosmetic warning that fired once per layer for any Qwen3-family model: `_compute_attention_weights` was reading `head_dim` directly off the attention module, but mlx-lm's Qwen2/Qwen3 attention only computes head_dim locally inside `__init__`. Now we infer it from `q_proj.weight.shape[0] // n_heads` when the attribute is absent. Affects every Qwen3 user, not just our flow.
 
 **Reference**: pyvene per-token interventions, mlx-lm generate utilities
 
