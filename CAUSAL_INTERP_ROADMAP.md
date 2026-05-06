@@ -181,10 +181,14 @@ edge_effects = model.path_patching(
 ```
 
 **Deliverables**:
-- [ ] Sender/receiver specification for path patching
-- [ ] Freeze-all-except patching (isolate specific paths)
-- [ ] Edge-level causal effect computation
-- [ ] Circuit graph construction from path patching results
+- [x] Sender specification at the component level (`"layers.{i}.self_attn"`, `"layers.{i}.mlp"`) — `model.path_patching(clean, corrupted, sender, target_token, foil_token, receiver=None)`
+- [x] Freeze-all-except patching: every layer's self_attn and mlp output is replaced with its corrupted value, except the sender, which is replaced with its clean value. The metric difference vs the corrupted baseline isolates the single-component contribution.
+- [x] Edge-level causal effect computation (single-edge MVP: receiver is the final logits, metric is `logit_diff(target, foil)` at the last position). Validated on Llama-3.2-1B-Instruct-4bit Paris/London task: produces a sparse circuit picture (`layers.15.self_attn = +2.21`, `layers.13.self_attn = +0.43`, `layers.10.mlp = -0.38`, most other components near zero), 32-component sweep in 1.1s (~0.03s/component)
+- [ ] Per-receiver paths (sender → receiver where receiver is internal, not just the final logits). Same machinery, different metric attachment. Roadmap follow-up.
+- [ ] Per-attention-head sender (currently `self_attn` is one hook point in mlx-lm — splitting into per-head outputs needs a tweak to the attention module's wrapping). Roadmap follow-up.
+- [ ] Circuit graph construction from path-patching results (plot, threshold, prune). Visualisation follow-up.
+
+Implementation: `AnalysisMixin.path_patching()` in `mlxterp/analysis.py`. Tests: `tests/test_path_patching.py` (4 contract tests). Validation sweep: `examples/path_patching.py`.
 
 **Reference**: TransformerLens path patching, Wang et al. "Interpretability in the Wild" (2022)
 
