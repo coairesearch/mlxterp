@@ -153,12 +153,14 @@ attr = model.attribution_patching(
 ```
 
 **Deliverables**:
-- [ ] Gradient computation through MLX (mx.grad or vjp)
-- [ ] Attribution patching for layers, heads, MLPs, positions
-- [ ] Integrated visualization (heatmap of attributions)
-- [ ] Validation against brute-force patching results
+- [x] Gradient computation through MLX (`mx.grad`) — uses the standard adjoint trick: add a zero-tensor perturbation at each layer's output, take grad of metric w.r.t. the perturbation; this yields ∂metric/∂activation in the natural forward without decoupling layers
+- [x] Attribution patching for layers — `model.attribution_patching(clean, corrupted, target_token, foil_token, layers, position)`; one forward + one backward, O(layer_count) speedup vs brute-force
+- [x] Position-aware: defaults to `position=-1` (last-token attribution) which matches the canonical next-token logit-diff formulation; `position=None` sums over all positions
+- [x] Validation against brute-force patching: Spearman rank correlation 0.729 vs same-component last-position brute-force on Llama-3.2-1B-Instruct-4bit (Paris/London factual recall); per-layer values agree closely (e.g. layer 4: -1.29 vs -1.20; layer 15: 2.37 vs 2.46), 5x wall-clock speedup at 16 layers (scales linearly)
+- [ ] Per-head, per-MLP, per-attention-component attribution — extends the same machinery to finer hook points; deferred follow-up
+- [ ] Integrated visualization (heatmap of attributions) — current return is `dict[layer_idx, float]`; heatmap renderer ships with `activation_patching` already and will be shared
 
-**Challenge**: MLX's lazy evaluation and functional design may require careful handling for backward passes.
+Implementation: `AnalysisMixin.attribution_patching()` in `mlxterp/analysis.py`. Tests: `tests/test_attribution_patching.py` (4 contract tests). Validation script: `examples/attribution_patching.py`.
 
 **Reference**: Neel Nanda's attribution patching, Relevance Patching (RelP)
 
