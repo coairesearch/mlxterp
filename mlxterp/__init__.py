@@ -41,6 +41,7 @@ from .core import (
 from .utils import get_activations, batch_get_activations
 from .sae import SAE, SAEConfig, SAETrainer
 from .tuned_lens import TunedLens, train_tuned_lens
+from .residual_stream import ResidualStream, build_residual_stream_from_trace
 
 # Visualization module (optional import - may fail if viz dependencies not installed)
 try:
@@ -86,6 +87,9 @@ __all__ = [
     # Tuned Lens
     "TunedLens",
     "train_tuned_lens",
+    # Residual stream view
+    "ResidualStream",
+    "build_residual_stream_from_trace",
     # Visualization
     "visualization",
 ]

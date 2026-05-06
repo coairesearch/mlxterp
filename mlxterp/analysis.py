@@ -5,6 +5,7 @@ This module provides analysis-related methods as a mixin class, including:
 - get_token_predictions: Decode hidden states to token predictions
 - logit_lens: See what each layer predicts at each position
 - activation_patching: Identify important layers for a task
+- residual_stream: Per-layer named hook points (resid_pre/mid/post) and contributions
 """
 
 import mlx.core as mx
@@ -988,3 +989,41 @@ class AnalysisMixin:
             plt.show()
 
         return results
+
+    def residual_stream(self, text: str):
+        """Run the model on ``text`` and return a :class:`ResidualStream`
+        view exposing the standard mech-interp hook points
+        (``resid_pre``, ``resid_mid``, ``resid_post``) plus per-layer
+        attention and MLP contributions.
+
+        See :mod:`mlxterp.residual_stream` for the full API.
+
+        Args:
+            text: Prompt to analyse.
+
+        Returns:
+            :class:`mlxterp.residual_stream.ResidualStream`
+
+        Example:
+            >>> rs = model.residual_stream("Paris is the capital of France")
+            >>> rs.pre(5)             # input to layer 5
+            >>> rs.mid(5)             # after attn, before MLP at layer 5
+            >>> rs.post(5)            # output of layer 5
+            >>> rs.attn_contribution(5)  # attn[5]
+            >>> rs.mlp_contribution(5)   # mlp[5]
+            >>> rs.accumulated()      # [resid_post[0], ..., resid_post[N-1]]
+            >>> # Sum-of-contributions identity:
+            >>> contribs = rs.decompose()
+            >>> total = sum(contribs.values())
+            >>> # total ≈ rs.post(N-1) modulo float precision
+        """
+        from .residual_stream import build_residual_stream_from_trace
+
+        n_layers = len(self.layers)
+        with self.trace(text) as trace:
+            # Materialise so the activations stick around after the
+            # context closes.
+            for v in trace.activations.values():
+                mx.eval(v)
+            captured = dict(trace.activations)
+        return build_residual_stream_from_trace(captured, n_layers)
