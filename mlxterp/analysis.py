@@ -5,6 +5,7 @@ This module provides analysis-related methods as a mixin class, including:
 - get_token_predictions: Decode hidden states to token predictions
 - logit_lens: See what each layer predicts at each position
 - activation_patching: Identify important layers for a task
+- direct_logit_attribution: Per-component decomposition of the logit_diff
 """
 
 import mlx.core as mx
@@ -986,5 +987,242 @@ class AnalysisMixin:
 
             plt.tight_layout()
             plt.show()
+
+        return results
+
+    def direct_logit_attribution(
+        self,
+        text: str,
+        target_token: Union[str, int],
+        foil_token: Union[str, int],
+        position: int = -1,
+        apply_final_norm: bool = True,
+    ) -> Dict[tuple, float]:
+        """Decompose the (target − foil) logit margin into per-component
+        contributions in residual space.
+
+        At a transformer's last position, the final residual stream is
+        the sum of every component's output: the token embedding, plus
+        every layer's self-attention output, plus every layer's MLP
+        output. Each of those vectors, dotted with
+        ``W_U[target] - W_U[foil]`` (the "logit-direction"), gives the
+        contribution of that component to the (target − foil) margin.
+
+        This is Direct Logit Attribution (DLA) in the standard
+        TransformerLens formulation, made model-agnostic via
+        mlxterp's module resolver.
+
+        Args:
+            text: Prompt to analyse.
+            target_token: Token whose logit you want to explain. Can be
+                a string (encoded; BOS stripped if present) or an int
+                token id.
+            foil_token: Contrastive token. The decomposition is for the
+                ``logit(target) - logit(foil)`` margin, since DLA is
+                most informative as a *contrastive* attribution.
+            position: Sequence position to attribute at. Default ``-1``
+                (last position) is the standard next-token formulation.
+            apply_final_norm: If ``True`` (default) apply the model's
+                final-norm scaling to the logit direction so the sum of
+                contributions matches the actual logit_diff
+                identically (modulo numerical precision). If ``False``
+                skip the final norm (faster, ranking-equivalent for
+                most tasks; matches `get_token_predictions`'s
+                weight-tied path).
+
+        Returns:
+            ``Dict[(component_label, layer_idx), float]`` where
+            ``component_label`` is one of ``"embed"``, ``"self_attn"``,
+            ``"mlp"`` and ``layer_idx`` is the layer index (or ``-1``
+            for ``"embed"`` since it precedes any layer). The values
+            sum to the logit_diff at the requested position when
+            ``apply_final_norm=True``.
+
+        Notes:
+            - Sum check: when ``apply_final_norm=True`` the sum of
+              returned values matches the model's actual logit_diff at
+              ``position`` to within float precision. The example
+              script verifies this.
+            - For Llama-style models the final norm is RMSNorm, which
+              applies a per-position scaling. The "frozen-norm"
+              approximation used here treats the natural-pass scale as
+              constant — exact for the actual logit_diff, approximate
+              under perturbations (which is the standard DLA
+              treatment).
+            - Ranking is more reliable than absolute magnitude: which
+              component contributes most positively / most negatively
+              to the margin is what DLA is good for.
+
+        Example:
+            >>> dla = model.direct_logit_attribution(
+            ...     text="Paris is the capital of France",
+            ...     target_token=" Paris",
+            ...     foil_token=" London",
+            ... )
+            >>> top = sorted(dla.items(), key=lambda kv: -kv[1])[:5]
+            >>> # top components writing toward " Paris"
+        """
+        if self.tokenizer is None:
+            raise ValueError("direct_logit_attribution requires a tokenizer.")
+
+        # 1. Resolve target/foil to token ids.
+        def _to_id(tok):
+            if isinstance(tok, int):
+                return tok
+            try:
+                ids = self.tokenizer.encode(tok, add_special_tokens=False)
+            except TypeError:
+                ids = self.tokenizer.encode(tok)
+            bos_id = getattr(self.tokenizer, "bos_token_id", None)
+            if bos_id is not None and ids and ids[0] == bos_id:
+                ids = ids[1:]
+            if len(ids) != 1:
+                raise ValueError(
+                    f"target/foil must be a single token; got {tok!r} which "
+                    f"tokenizes to {len(ids)} ids ({ids})."
+                )
+            return ids[0]
+
+        target_id = _to_id(target_token)
+        foil_id = _to_id(foil_token)
+
+        # 2. Get the logit direction in residual space:
+        # W_U[target] - W_U[foil]. Goes via the module resolver so we
+        # work whether weights are tied (Llama) or not (some GPT
+        # variants).
+        proj_module, _, is_tied = self._module_resolver.get_output_projection()
+        if proj_module is None:
+            raise AttributeError(
+                "direct_logit_attribution could not resolve an output "
+                "projection. Pass embedding_path / lm_head_path on "
+                "InterpretableModel(...) to override."
+            )
+
+        if is_tied:
+            # Weight-tied: call the embedding on the target/foil ids to
+            # materialise the corresponding rows. This handles both
+            # plain and quantised embedding layers — quantised
+            # embeddings dequantise on row access, which is exactly
+            # what we want.
+            ids_arr = mx.array([target_id, foil_id])
+            rows = proj_module(ids_arr)  # (2, hidden)
+            target_row = rows[0]
+            foil_row = rows[1]
+        else:
+            # Separate lm_head: index its weight matrix directly.
+            target_row = proj_module.weight[target_id]
+            foil_row = proj_module.weight[foil_id]
+        logit_direction = target_row - foil_row  # (hidden,)
+
+        # 3. Trace and capture the per-component contributions.
+        n_layers = len(self.layers)
+
+        def _resolve(suffix_for_layer):
+            return [
+                f"model.model.layers.{{i}}.{suffix_for_layer}",
+                f"model.layers.{{i}}.{suffix_for_layer}",
+                f"layers.{{i}}.{suffix_for_layer}",
+            ]
+
+        # Try several embedding paths used by the resolver, since the
+        # resolver knows where the embedding lives but the trace's
+        # activation key may be slightly different.
+        embedding_paths = [
+            "model.model.embed_tokens",
+            "model.embed_tokens",
+            "embed_tokens",
+            "model.model.wte",
+            "model.wte",
+            "wte",
+        ]
+
+        with self.trace(text) as t:
+            attn_out = {}
+            mlp_out = {}
+            for i in range(n_layers):
+                for tmpl in (
+                    f"model.model.layers.{i}.self_attn",
+                    f"model.layers.{i}.self_attn",
+                    f"layers.{i}.self_attn",
+                ):
+                    if tmpl in t.activations:
+                        attn_out[i] = t.activations[tmpl]
+                        break
+                for tmpl in (
+                    f"model.model.layers.{i}.mlp",
+                    f"model.layers.{i}.mlp",
+                    f"layers.{i}.mlp",
+                ):
+                    if tmpl in t.activations:
+                        mlp_out[i] = t.activations[tmpl]
+                        break
+
+            # Token embedding contribution: sometimes captured by the
+            # trace, sometimes not depending on the model wrapping.
+            embed_act = None
+            for ep in embedding_paths:
+                if ep in t.activations:
+                    embed_act = t.activations[ep]
+                    break
+
+            # Final residual stream — needed if we want to apply the
+            # final norm to get an exact sum.
+            final_resid = None
+            for tmpl in (
+                f"model.model.layers.{n_layers - 1}",
+                f"model.layers.{n_layers - 1}",
+                f"layers.{n_layers - 1}",
+            ):
+                if tmpl in t.activations:
+                    final_resid = t.activations[tmpl]
+                    break
+
+        # Materialise everything before doing array math.
+        for v in attn_out.values():
+            mx.eval(v)
+        for v in mlp_out.values():
+            mx.eval(v)
+        if embed_act is not None:
+            mx.eval(embed_act)
+        if final_resid is not None:
+            mx.eval(final_resid)
+
+        # 4. Effective logit-direction. Without the final norm this is
+        # just W_U[t]-W_U[f]. With the frozen-norm approximation we
+        # absorb the final norm's per-position scale into the
+        # direction, so per-component dot products sum to the actual
+        # logit_diff.
+        effective_direction = logit_direction
+        if apply_final_norm and final_resid is not None:
+            norm_module = self._module_resolver.get_final_norm()
+            if norm_module is not None:
+                # Apply the natural-pass norm to the final residual at
+                # `position`, then back out the effective scale so we
+                # can absorb it into the direction.
+                resid_at_pos = final_resid[0, position].astype(mx.float32)  # (hidden,)
+                # RMSNorm forms y = w * x / sqrt(mean(x^2)+eps); the
+                # ratio y_i / x_i is the effective per-feature scale.
+                # We compute it by running the norm directly.
+                normed = norm_module(resid_at_pos[None, :])[0].astype(mx.float32)
+                # Avoid div-by-zero on dead features.
+                safe_resid = mx.where(
+                    mx.abs(resid_at_pos) > 1e-9, resid_at_pos, mx.ones_like(resid_at_pos)
+                )
+                scale = normed / safe_resid
+                effective_direction = (logit_direction.astype(mx.float32) * scale)
+
+        # 5. Per-component dot products at the requested position.
+        results: Dict[tuple, float] = {}
+
+        def _contrib(act):
+            v = act[0, position].astype(mx.float32)
+            return float(mx.sum(v * effective_direction))
+
+        if embed_act is not None:
+            results[("embed", -1)] = _contrib(embed_act)
+        for i in sorted(attn_out):
+            results[("self_attn", i)] = _contrib(attn_out[i])
+        for i in sorted(mlp_out):
+            results[("mlp", i)] = _contrib(mlp_out[i])
 
         return results
