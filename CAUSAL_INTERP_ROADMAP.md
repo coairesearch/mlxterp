@@ -250,11 +250,15 @@ edge_effects = model.path_patching(
 **Why**: Standard mechinterp output is a (layer x position) heatmap of causal effects. Currently no way to visualize patching results.
 
 **Deliverables**:
-- [ ] Layer x position heatmap for activation patching results
-- [ ] Layer x head heatmap for head-level patching
-- [ ] Component contribution bar charts for DLA
-- [ ] Interactive Plotly versions for exploration
-- [ ] Matplotlib versions for publication
+- [x] Layer × position heatmap (`plot_patching_heatmap`) — symmetric-around-zero RdBu_r colour scale; works on any 2-D ndarray-like
+- [x] Component contribution bar charts for DLA (`plot_dla`) — sorted, with optional `top_k`, leftmost slot for embedding contribution
+- [x] Layer-keyed bar chart for attribution patching (`plot_attribution_bar`)
+- [x] Grouped bar chart for path-patching sweep (`plot_path_effects_bar`) — self_attn / mlp side by side per layer
+- [x] Matplotlib versions for publication (`Agg`-friendly; sharable figure objects)
+- [ ] Layer × head heatmap — needs the per-head split that's blocked on the attention wrapping change. Roadmap follow-up.
+- [ ] Interactive Plotly versions — straightforward follow-up; the dict / matrix interface stays the same.
+
+Implementation: `mlxterp/visualization/patching.py` exposing the four renderers; re-exported from `mlxterp.visualization`. Tests: `tests/test_patching_visualization.py` (7 smoke tests). Demo: `examples/patching_visualization.py` (synthetic inputs that match the shapes of every Tier 1/2 patching API).
 
 ---
 
