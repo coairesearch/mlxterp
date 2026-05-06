@@ -197,10 +197,14 @@ edge_effects = model.path_patching(
 **Why**: Decompose the final logit into per-head and per-MLP contributions. Starting point for most circuit analyses. Basic in TransformerLens.
 
 **Deliverables**:
-- [ ] Residual stream decomposition per component
-- [ ] Per-head logit contribution computation
-- [ ] Per-MLP logit contribution computation
-- [ ] DLA visualization (bar chart of component contributions)
+- [x] Residual stream decomposition per component — `model.direct_logit_attribution(text, target_token, foil_token, position=-1, apply_final_norm=True)` returns `dict[(component_label, layer_idx) → contribution]`
+- [x] Per-MLP logit contribution computation (one entry per layer)
+- [x] Embedding contribution (separate `embed` entry)
+- [x] Frozen-norm formulation: with `apply_final_norm=True` the contributions sum to the actual `logit_diff` exactly (validated on Llama-3.2-1B-Instruct-4bit Paris/London: identity gap = -0.0006)
+- [ ] Per-head logit contribution computation — needs `self_attn` to be split into per-head outputs (a tweak to the attention wrapping); currently grouped at the `self_attn` module level (one entry per layer)
+- [ ] DLA visualization (bar chart) — straightforward follow-up using matplotlib
+
+Implementation: `AnalysisMixin.direct_logit_attribution()` in `mlxterp/analysis.py`. Tests: `tests/test_direct_logit_attribution.py` (4 contract tests, including a sum-check). Validation script: `examples/direct_logit_attribution.py`.
 
 ---
 
