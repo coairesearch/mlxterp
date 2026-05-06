@@ -43,6 +43,13 @@ from .interactive import (
     InteractiveAttentionConfig,
 )
 
+from .patching import (
+    plot_attribution_bar,
+    plot_path_effects_bar,
+    plot_dla,
+    plot_patching_heatmap,
+)
+
 __all__ = [
     # Attention visualization
     "attention_heatmap",
@@ -64,4 +71,9 @@ __all__ = [
     "first_token_score",
     "copying_score",
     "find_attention_pattern",
+    # Patching visualisations
+    "plot_attribution_bar",
+    "plot_path_effects_bar",
+    "plot_dla",
+    "plot_patching_heatmap",
 ]
