@@ -101,3 +101,67 @@ def test_skip_forward_trace_matches_generate_api(interp_model, model_and_tokeniz
     ):
         manual = mlx_lm.generate(base, tok, PROMPT, max_tokens=MAX_TOKENS, verbose=False)
     assert api == manual
+
+
+def test_intervention_tokens_all_matches_unrestricted(interp_model):
+    """intervention_tokens='all' must produce identical output to omitting
+    the parameter entirely (no gating overhead)."""
+    unrestricted = interp_model.generate(
+        PROMPT,
+        max_tokens=MAX_TOKENS,
+        interventions={"layers.5": iv.zero_out},
+    )
+    with_all = interp_model.generate(
+        PROMPT,
+        max_tokens=MAX_TOKENS,
+        interventions={"layers.5": iv.zero_out},
+        intervention_tokens="all",
+    )
+    assert unrestricted == with_all
+
+
+def test_intervention_tokens_prompt_only(interp_model):
+    """When the gate is 'prompt', the intervention fires on the prompt
+    forward only. Subsequent token forwards see the unhooked layer.
+    Output should usually differ from baseline (the prompt encoding was
+    disrupted, which can propagate via KV cache) and from the all-fire
+    case (later tokens are no longer being suppressed)."""
+    baseline = interp_model.generate(PROMPT, max_tokens=MAX_TOKENS)
+    prompt_only = interp_model.generate(
+        PROMPT,
+        max_tokens=MAX_TOKENS,
+        interventions={"layers.5": iv.zero_out},
+        intervention_tokens="prompt",
+    )
+    all_fire = interp_model.generate(
+        PROMPT,
+        max_tokens=MAX_TOKENS,
+        interventions={"layers.5": iv.zero_out},
+        intervention_tokens="all",
+    )
+    # Prompt-only differs from the always-fire baseline (later tokens
+    # aren't suppressed any more).
+    assert prompt_only != all_fire
+
+
+def test_intervention_tokens_specific_position(interp_model):
+    """intervention_tokens=0 fires only on the first generated token's
+    forward. This produces output that's different from both baseline
+    and from the always-fire case."""
+    baseline = interp_model.generate(PROMPT, max_tokens=MAX_TOKENS)
+    pos0 = interp_model.generate(
+        PROMPT,
+        max_tokens=MAX_TOKENS,
+        interventions={"layers.5": iv.zero_out},
+        intervention_tokens=0,
+    )
+    all_fire = interp_model.generate(
+        PROMPT,
+        max_tokens=MAX_TOKENS,
+        interventions={"layers.5": iv.zero_out},
+        intervention_tokens="all",
+    )
+    # Single-position firing should differ from no firing (it's still
+    # an intervention) and from full firing (it's a milder intervention).
+    assert pos0 != baseline
+    assert pos0 != all_fire

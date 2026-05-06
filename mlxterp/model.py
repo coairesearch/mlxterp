@@ -14,6 +14,86 @@ from .analysis import AnalysisMixin
 from .sae_mixin import SAEMixin
 
 
+def _make_token_gated_intervention(
+    fn: Callable,
+    intervention_tokens: Union[str, int, List[int], range, slice],
+) -> Callable:
+    """Wrap an intervention so it fires only on the selected forward passes.
+
+    Used by ``InterpretableModel.generate`` to support per-token-position
+    interventions during autoregressive generation. The returned function
+    has the same signature as the original (takes an activation tensor,
+    returns a transformed one), but internally tracks which generation
+    step is in flight and only applies ``fn`` when that step is in the
+    allowed set.
+
+    Forward passes are classified into two kinds based on the activation
+    tensor's sequence length:
+      * seq_len > 1 → "prompt" forward (the model is encoding the input
+        prompt in one shot).
+      * seq_len == 1 → "generated" forward (the model is producing the
+        next single token, with the rest of the context in the KV cache).
+
+    Generated-token positions are 0-indexed: position 0 is the first
+    generated token, 1 is the second, and so on. The counter resets if
+    the gate sees another prompt-shaped forward (which signals a new
+    generation cycle).
+
+    Allowed values for ``intervention_tokens``:
+      * ``"all"`` or ``None`` (handled by the caller, never reaches here)
+      * ``"prompt"`` — fire on the prompt-encoding forward only
+      * ``"generated"`` — fire on every generated-token forward
+      * int — fire on that specific generated-token position
+      * list / set / range — fire on those generated-token positions
+      * slice — fire on positions matching the slice
+
+    Args:
+        fn: The original intervention function.
+        intervention_tokens: Selector (see above).
+
+    Returns:
+        A callable with the same signature as ``fn`` that gates firing
+        based on the position rule.
+    """
+    if isinstance(intervention_tokens, slice):
+        # Materialise the slice into a frozenset of positions up to a
+        # generous upper bound so membership checks are O(1). Negative
+        # values aren't supported because we can't know max_tokens at
+        # gate-construction time.
+        start = intervention_tokens.start or 0
+        stop = intervention_tokens.stop if intervention_tokens.stop is not None else 1_000_000
+        step = intervention_tokens.step or 1
+        allowed = frozenset(range(start, stop, step))
+        intervention_tokens = allowed
+    if isinstance(intervention_tokens, (list, set, range)):
+        intervention_tokens = frozenset(int(p) for p in intervention_tokens)
+
+    state = {"gen_step": -1}
+
+    def gated(activation):
+        seq_len = activation.shape[-2] if hasattr(activation, "shape") and len(activation.shape) >= 2 else 1
+        if seq_len > 1:
+            state["gen_step"] = -1  # prompt-encoding forward; reset
+            is_prompt = True
+        else:
+            state["gen_step"] += 1
+            is_prompt = False
+
+        if intervention_tokens == "prompt" and is_prompt:
+            return fn(activation)
+        if intervention_tokens == "generated" and not is_prompt:
+            return fn(activation)
+        if not is_prompt:
+            pos = state["gen_step"]
+            if isinstance(intervention_tokens, int) and pos == intervention_tokens:
+                return fn(activation)
+            if isinstance(intervention_tokens, frozenset) and pos in intervention_tokens:
+                return fn(activation)
+        return activation
+
+    return gated
+
+
 class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
     """
     Wraps any MLX model to provide interpretability features.
@@ -262,6 +342,7 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
         prompt: Union[str, List[int], mx.array],
         max_tokens: int = 100,
         interventions: Optional[Dict[str, Callable]] = None,
+        intervention_tokens: Optional[Union[str, int, List[int], range, slice]] = None,
         verbose: bool = False,
         **sampling_kwargs,
     ) -> str:
@@ -280,6 +361,18 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
                 functions (same format as ``model.trace(..., interventions=...)``).
                 Patches are applied for the duration of the generation call
                 only, then restored.
+            intervention_tokens: Restricts which forward passes the
+                interventions actually fire on. Defaults to ``None`` /
+                ``"all"`` which fires on every forward (the prompt-encoding
+                pass plus every generated-token pass). Other values:
+                  - ``"prompt"``: fire only on the prompt-encoding forward.
+                  - ``"generated"``: fire on every generated-token forward.
+                  - int: fire only on that specific generated-token position
+                    (0-indexed; 0 is the first generated token).
+                  - list/set/range/slice: fire on those generated-token
+                    positions.
+                The gate detects "prompt" vs "generated-token" forwards by
+                inspecting the activation's sequence length (>1 = prompt).
             verbose: Pass-through to ``mlx_lm.generate``.
             **sampling_kwargs: Pass-through to ``mlx_lm.generate`` (temp,
                 top_p, top_k, sampler, etc.).
@@ -296,14 +389,17 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
             ...     max_tokens=20,
             ...     interventions={"layers.5": iv.add_vector(steering_vec)},
             ... )
+            >>> # Apply the steering only on the first 3 generated tokens
+            >>> output = model.generate(
+            ...     "The capital of France is",
+            ...     max_tokens=20,
+            ...     interventions={"layers.5": iv.add_vector(steering_vec)},
+            ...     intervention_tokens=[0, 1, 2],
+            ... )
 
         Notes:
             - Requires ``mlx_lm`` for the underlying generation loop and KV
               cache. ``mlxterp`` only handles the patch lifecycle.
-            - Interventions fire on every forward call inside the generation
-              loop. For per-token-position selectivity, use the lower-level
-              context-manager pattern: ``with model.trace(prompt, interventions=...,
-              skip_forward=True): mlx_lm.generate(...)``.
         """
         try:
             from mlx_lm import generate as mlx_generate
@@ -318,6 +414,15 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
                 "InterpretableModel.generate needs a tokenizer. Pass one to "
                 "InterpretableModel(model, tokenizer=...) or load via mlx_lm."
             )
+
+        # If intervention_tokens is set, wrap each intervention with a
+        # position-aware gate so it only fires on the selected forward
+        # passes during generation.
+        if interventions and intervention_tokens not in (None, "all"):
+            interventions = {
+                name: _make_token_gated_intervention(fn, intervention_tokens)
+                for name, fn in interventions.items()
+            }
 
         # Trace with skip_forward=True patches the layers without running
         # any forward pass of its own. Inside the with block, mlx_lm.generate
