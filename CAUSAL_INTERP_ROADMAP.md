@@ -92,11 +92,13 @@ with model.causal_trace(clean_input, corrupted_input) as ct:
 ```
 
 **Deliverables**:
-- [ ] `model.causal_trace(clean, corrupted)` context manager
-- [ ] `.patch(component)` method for declarative patching
-- [ ] `.metric(fn)` for computing causal effects inline
-- [ ] Automatic activation alignment when sequence lengths differ
-- [ ] Batch support for patching multiple components in one pass
+- [x] `model.causal_trace(clean, corrupted)` context manager — implemented as a separate `CausalTrace` class in `mlxterp/core/causal_trace.py`
+- [x] `.patch(component)` method for declarative patching — accepts short module names (`"layers.5.mlp"`) and accommodates `model.` / `model.model.` activation key prefixes automatically
+- [ ] `.metric(fn)` for computing causal effects inline — deferred; users can still invoke metrics by hand on `ct.output` and `ct.clean_output`. Built-in metrics (`logit_diff`, `kl_divergence`, `cross_entropy_diff`) live on `model.activation_patching` from Tier 1 #1
+- [x] Activation alignment when sequence lengths differ — handled by the existing `replace_with(align="end")` semantics that the patch path delegates to
+- [ ] Batch support for patching multiple components in one pass — multiple `.patch()` calls compose and the corrupted forward runs once on `.output` access; batched-input ("run k corruptions in one call") deferred
+
+Implementation: `mlxterp/core/causal_trace.py` (new file) for the `CausalTrace` class; `InterpretableModel.causal_trace()` method dispatches to it. Tests in `tests/test_causal_trace.py` (8 contract tests). Example in `examples/causal_trace.py` showing the verbose-vs-ergonomic comparison.
 
 ---
 

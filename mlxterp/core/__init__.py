@@ -2,6 +2,7 @@
 
 from .proxy import ModuleProxy, OutputProxy, LayerListProxy, TraceContext
 from .trace import Trace
+from .causal_trace import CausalTrace
 from .intervention import (
     zero_out,
     scale,
@@ -26,6 +27,7 @@ __all__ = [
     "TraceContext",
     # Trace
     "Trace",
+    "CausalTrace",
     # Intervention
     "zero_out",
     "scale",
