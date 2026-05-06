@@ -131,6 +131,89 @@ def replace_with(value: Union[mx.array, float], align: str = "end") -> Callable[
     return _replace
 
 
+def replace_at_positions(
+    value: mx.array,
+    positions: Union[int, list, tuple, range],
+) -> Callable[[mx.array], mx.array]:
+    """
+    Replace an activation only at specific token positions.
+
+    The activation has shape (batch, seq_len, ...). This intervention
+    leaves all positions intact except those listed in ``positions``,
+    where it copies values from ``value``. ``value`` must have the
+    same shape as the activation it's replacing on (the runtime
+    intervention shape).
+
+    Used for position-level activation patching: instead of replacing
+    a whole layer's activation with a clean run's activation, replace
+    only the activation at the position(s) you're testing.
+
+    Args:
+        value: Source array. Must have the same shape as the activation
+            being intervened on. Typically the captured clean-run
+            activation at the same layer.
+        positions: One or more token positions to overwrite. Negative
+            positions are not supported here (we want explicit absolute
+            indexing for clarity in patching experiments).
+
+    Returns:
+        Intervention function suitable for ``interventions={...}``.
+
+    Example:
+        >>> # Capture clean activation at layer 5
+        >>> with model.trace(clean_text) as t:
+        ...     clean_l5 = t.activations['model.model.layers.5']
+        >>>
+        >>> # Patch only token position 3 from clean into corrupted
+        >>> with model.trace(corrupted_text, interventions={
+        ...     "layers.5": replace_at_positions(clean_l5, positions=3)
+        ... }):
+        ...     out = model.output.save()
+
+    Notes:
+        Operates in MLX without an in-place mutation. We construct a
+        boolean mask and use mx.where so the result is a new array.
+    """
+    if isinstance(positions, int):
+        positions_list = [positions]
+    else:
+        positions_list = [int(p) for p in positions]
+
+    def _replace_at_positions(activation: mx.array) -> mx.array:
+        if activation.ndim < 2:
+            return activation
+        seq_len = activation.shape[-2]
+        # Validate that all requested positions are in bounds for this
+        # activation. Out-of-range positions are silently skipped rather
+        # than raising; this matches how generate-time interventions
+        # handle position-mismatched batches.
+        valid = [p for p in positions_list if 0 <= p < seq_len]
+        if not valid:
+            return activation
+        # Build a per-position selector aligned with the activation's
+        # sequence axis. mx.take + mx.put isn't quite the right shape
+        # for a partial overwrite, so we assemble the result by
+        # concatenating sliced regions.
+        keep_left = activation[..., :valid[0], :]
+        chunks = [keep_left]
+        for i, pos in enumerate(valid):
+            # Slot the replacement at this position
+            chunks.append(value[..., pos:pos + 1, :])
+            # If there's a gap before the next replacement position,
+            # carry over the original activation's positions in between.
+            if i + 1 < len(valid):
+                next_pos = valid[i + 1]
+                if next_pos > pos + 1:
+                    chunks.append(activation[..., pos + 1:next_pos, :])
+        # Tail: everything after the last replaced position
+        last = valid[-1]
+        if last + 1 < seq_len:
+            chunks.append(activation[..., last + 1:, :])
+        return mx.concatenate(chunks, axis=-2)
+
+    return _replace_at_positions
+
+
 def clamp(min_val: float = None, max_val: float = None) -> Callable[[mx.array], mx.array]:
     """
     Clamp activation values to a range.
