@@ -20,11 +20,12 @@ def _is_attention_module(module) -> bool:
     """
     Check if a module is an attention module that we should capture weights from.
 
-    Uses interface-based detection: checks for q_proj, k_proj, n_heads, head_dim
-    which are common across attention implementations.
+    Interface-based detection: checks for q_proj, k_proj, n_heads. We do not
+    require head_dim as a direct attribute because mlx-lm's Qwen2/Qwen3
+    attention only computes head_dim locally inside __init__ rather than
+    storing it on self. We derive it from the Q projection shape downstream.
     """
-    # Interface-based detection - more robust than name matching
-    required_attrs = ['q_proj', 'k_proj', 'n_heads', 'head_dim']
+    required_attrs = ['q_proj', 'k_proj', 'n_heads']
     has_required = all(hasattr(module, attr) for attr in required_attrs)
 
     if has_required:
@@ -36,6 +37,7 @@ def _is_attention_module(module) -> bool:
         'Attention', 'SelfAttention', 'MultiHeadAttention', 'MHA',
         'MultiheadAttention', 'LlamaAttention', 'CausalSelfAttention',
         'GptNeoXAttention', 'MistralAttention', 'Qwen2Attention',
+        'Qwen3Attention',
     }
     return module_type in attention_names
 
@@ -510,7 +512,17 @@ class Trace:
                         # Reshape to (batch, num_heads, seq_len, head_dim)
                         n_heads = attn.n_heads
                         n_kv_heads = attn.n_kv_heads
-                        head_dim = attn.head_dim
+                        # head_dim is sometimes a direct attribute (older
+                        # mlx-lm), sometimes only available as a local in
+                        # the Attention __init__ (Qwen2/Qwen3, where it's
+                        # computed from args.hidden_size // n_heads). Fall
+                        # back to inferring it from the Q projection's
+                        # output shape: q_proj is Linear(hidden, n_heads *
+                        # head_dim), so output dim / n_heads gives head_dim.
+                        if hasattr(attn, "head_dim"):
+                            head_dim = attn.head_dim
+                        else:
+                            head_dim = attn.q_proj.weight.shape[0] // n_heads
 
                         queries = queries.reshape(B, L, n_heads, head_dim).transpose(0, 2, 1, 3)
                         keys = keys.reshape(B, L, n_kv_heads, head_dim).transpose(0, 2, 1, 3)
