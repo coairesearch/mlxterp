@@ -112,6 +112,7 @@ class Trace:
         tokenizer: Optional[Any] = None,
         interventions: Optional[Dict[str, Callable]] = None,
         interpretable_model: Optional[Any] = None,
+        skip_forward: bool = False,
     ):
         """
         Initialize a trace.
@@ -122,12 +123,20 @@ class Trace:
             tokenizer: Optional tokenizer for text inputs
             interventions: Dict mapping module names to intervention functions
             interpretable_model: The InterpretableModel instance (for layer patching)
+            skip_forward: If True, __enter__ patches layers but does NOT run the
+                forward pass on `inputs`. Useful for callers that want patches
+                applied across multiple forward passes they will run themselves
+                inside the context (e.g. autoregressive generation via
+                ``mlx_lm.generate`` or per-token interventions). The forward
+                pass would otherwise be wasted compute on those callers, since
+                its activations are not consumed.
         """
         self.model_forward = model_forward
         self.inputs = inputs
         self.tokenizer = tokenizer
         self.interventions = interventions or {}
         self.interpretable_model = interpretable_model
+        self.skip_forward = skip_forward
 
         self.context: Optional[TraceContext] = None
         self.output: Optional[mx.array] = None
@@ -155,8 +164,12 @@ class Trace:
         if self.interpretable_model is not None:
             self._patch_model_layers()
 
-        # Execute the forward pass immediately
-        # This allows users to access activations in the with block
+        # Execute the forward pass immediately, unless the caller asked us
+        # to skip it. Skipping is for callers that will run their own forwards
+        # inside the context (autoregressive generation, multi-input patching).
+        if self.skip_forward:
+            return self
+
         try:
             # Process inputs
             processed_inputs = self._process_inputs(self.inputs)

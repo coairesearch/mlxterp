@@ -257,6 +257,90 @@ class InterpretableModel(TokenizerMixin, AnalysisMixin, SAEMixin):
         """
         return self.model(inputs)
 
+    def generate(
+        self,
+        prompt: Union[str, List[int], mx.array],
+        max_tokens: int = 100,
+        interventions: Optional[Dict[str, Callable]] = None,
+        verbose: bool = False,
+        **sampling_kwargs,
+    ) -> str:
+        """
+        Generate text autoregressively, with optional persistent interventions.
+
+        Each token's forward pass passes through any patched layers, so an
+        intervention dict you pass here fires on every generation step. This
+        is the standard mech-interp pattern: install a hook, generate the
+        continuation under the hook, observe how the answer changes.
+
+        Args:
+            prompt: Text or token sequence to generate from.
+            max_tokens: Number of new tokens to generate.
+            interventions: Optional dict mapping module names to intervention
+                functions (same format as ``model.trace(..., interventions=...)``).
+                Patches are applied for the duration of the generation call
+                only, then restored.
+            verbose: Pass-through to ``mlx_lm.generate``.
+            **sampling_kwargs: Pass-through to ``mlx_lm.generate`` (temp,
+                top_p, top_k, sampler, etc.).
+
+        Returns:
+            The generated text (including the prompt, matching mlx_lm.generate's
+            return convention).
+
+        Example:
+            >>> from mlxterp import interventions as iv
+            >>> # Steer layer 5 with a vector during generation
+            >>> output = model.generate(
+            ...     "The capital of France is",
+            ...     max_tokens=20,
+            ...     interventions={"layers.5": iv.add_vector(steering_vec)},
+            ... )
+
+        Notes:
+            - Requires ``mlx_lm`` for the underlying generation loop and KV
+              cache. ``mlxterp`` only handles the patch lifecycle.
+            - Interventions fire on every forward call inside the generation
+              loop. For per-token-position selectivity, use the lower-level
+              context-manager pattern: ``with model.trace(prompt, interventions=...,
+              skip_forward=True): mlx_lm.generate(...)``.
+        """
+        try:
+            from mlx_lm import generate as mlx_generate
+        except ImportError as exc:
+            raise RuntimeError(
+                "InterpretableModel.generate requires mlx_lm. "
+                "Install it with `pip install mlx-lm`."
+            ) from exc
+
+        if self.tokenizer is None:
+            raise ValueError(
+                "InterpretableModel.generate needs a tokenizer. Pass one to "
+                "InterpretableModel(model, tokenizer=...) or load via mlx_lm."
+            )
+
+        # Trace with skip_forward=True patches the layers without running
+        # any forward pass of its own. Inside the with block, mlx_lm.generate
+        # runs the autoregressive loop, and each token's forward goes through
+        # the patched layers.
+        trace_kwargs = {"interventions": interventions} if interventions else {}
+        with Trace(
+            model_forward=self._forward,
+            inputs=prompt,
+            tokenizer=self.tokenizer,
+            interpretable_model=self,
+            skip_forward=True,
+            **trace_kwargs,
+        ):
+            return mlx_generate(
+                self.model,
+                self.tokenizer,
+                prompt,
+                max_tokens=max_tokens,
+                verbose=verbose,
+                **sampling_kwargs,
+            )
+
     def __call__(self, *args, **kwargs):
         """
         Direct forward pass without tracing.
